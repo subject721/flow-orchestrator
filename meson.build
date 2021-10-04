@@ -67,7 +67,7 @@ dep_boost = dependency('boost', modules : boost_modules)
 
 dep_dpdk = dependency('libdpdk-libs')
 
-dep_asmjit = dependency('asmjit', method: 'cmake')
+dep_asmjit = dep_null # dependency('asmjit', method: 'cmake')
 
 dep_luajit = dependency('luajit')
 
