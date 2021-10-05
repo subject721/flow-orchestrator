@@ -6,11 +6,8 @@
 #include <rte_cycles.h>
 #include <rte_errno.h>
 
-#include <boost/format.hpp>
 
 using namespace std;
-using boost::format;
-using boost::io::group;
 
 
 int lcore_thread::lcore_thread_launch_trampoline(void* arg) {
@@ -63,7 +60,7 @@ bool lcore_thread::is_joinable() {
 void lcore_thread::try_launch() {
 
     if ( 0 != rte_eal_remote_launch(lcore_thread_launch_trampoline, this, lcore_id) ) {
-        throw std::runtime_error((format("could not launch function on lcore %1%") % lcore_id).str());
+        throw std::runtime_error(fmt::format("could not launch function on lcore {}", lcore_id));
     }
 }
 
@@ -73,7 +70,7 @@ dpdk_mempool::dpdk_mempool(uint32_t num_elements, uint16_t cache_size, uint16_t 
 
     if ( !new_pool_ptr ) {
         throw std::runtime_error(
-            (format("could not create packet memory buffer (err %1%)") % rte_strerror(rte_errno)).str());
+            fmt::format("could not create packet memory buffer (err {})", rte_strerror(rte_errno)));
     }
 
     mempool = std::unique_ptr< rte_mempool, mempool_deleter >(new_pool_ptr);
@@ -91,14 +88,14 @@ int dpdk_mempool::bulk_alloc(rte_mbuf** mbufs, uint16_t count) {
     return rte_pktmbuf_alloc_bulk(mempool.get(), mbufs, count);
 }
 
-int  dpdk_mempool::bulk_alloc(mbuf_vec_base& mbuf_vec, uint16_t count) {
-    if(count > mbuf_vec.num_free_tail()) {
+int dpdk_mempool::bulk_alloc(mbuf_vec_base& mbuf_vec, uint16_t count) {
+    if ( count > mbuf_vec.num_free_tail() ) {
         count = mbuf_vec.num_free_tail();
     }
 
     int rc = bulk_alloc(mbuf_vec.data(), count);
 
-    if(!rc) {
+    if ( !rc ) {
         mbuf_vec.set_size(count);
     }
 
@@ -125,9 +122,8 @@ void mbuf_ring::init(size_t capacity) {
     if ( !new_ring_ptr ) {
         int error_code = rte_errno;
 
-        throw std::runtime_error((boost::format("could not create sp/sc ring with capacity of %1%: %2%") % capacity %
-                                  rte_strerror(error_code))
-                                     .str());
+        throw std::runtime_error(
+            fmt::format("could not create sp/sc ring with capacity of {}: {}", capacity, rte_strerror(error_code)));
     }
 
     ring = std::unique_ptr< rte_ring, rte_ring_deleter >(new_ring_ptr);
@@ -152,6 +148,6 @@ void dpdk_eal_init(std::vector< std::string > flags) {
     auto rc = rte_eal_init((int) pointer_list.size(), pointer_list.data());
 
     if ( 0 > rc ) {
-        throw std::runtime_error((format("could not init dpdk runtime: %1%") % rc).str());
+        throw std::runtime_error(fmt::format("could not init dpdk runtime: {}", rte_strerror(rc)));
     }
 }

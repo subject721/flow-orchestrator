@@ -65,6 +65,8 @@ dep_threads = dependency('threads')
 
 dep_boost = dependency('boost', modules : boost_modules)
 
+dep_fmt = dependency('fmt')
+
 dep_dpdk = dependency('libdpdk-libs')
 
 dep_asmjit = dep_null # dependency('asmjit', method: 'cmake')
@@ -82,7 +84,7 @@ dep_all += dep_dpdk
 dep_all += dep_asmjit
 dep_all += dep_luajit
 dep_all += dep_sol
-
+dep_all += dep_fmt
 
 ############################
 # Include subdirs 

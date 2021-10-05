@@ -14,9 +14,7 @@
 
 #include <config.h>
 
-#include <boost/format.hpp>
-
-using format = boost::format;
+#include <fmt/format.h>
 
 class noncopyable
 {
@@ -42,9 +40,13 @@ public:
     template < size_t N >
     log_message(log_level level, const char (&cstr)[N]) : level(level), data(cstr) {}
 
+    template < size_t N, class... TArgs >
+    log_message(log_level level, const char (&cstr)[N], TArgs&&... args) :
+        level(level), data(fmt::format(cstr, std::forward< TArgs >(args)...)) {}
+
     log_message(log_level level, std::string str) : level(level), data(std::move(str)) {}
 
-    log_message(log_level level, const format& fmt) : log_message(level, fmt.str()) {}
+    // log_message(log_level level, const format& fmt) : log_message(level, fmt.str()) {}
 
     log_message(const log_message&)     = default;
     log_message(log_message&&) noexcept = default;

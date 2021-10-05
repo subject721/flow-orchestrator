@@ -14,7 +14,7 @@ static const char* ORANGE_COLOR = "\x1b[0;33m";
 class color_inserter : noncopyable
 {
 public:
-    color_inserter(std::ostream& stream, const char* str) : stream(stream), str(str) {
+    color_inserter(std::ostream& stream, const char* str) : stream(stream) {
         stream << str;
     }
 
@@ -24,8 +24,6 @@ public:
 
 private:
     std::ostream& stream;
-
-    const char*   str;
 };
 
 void _log(log_message msg) {

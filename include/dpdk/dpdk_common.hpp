@@ -60,8 +60,8 @@ private:
 
 struct mempool_deleter
 {
-    void operator() (rte_mempool* mempool) {
-        if(!mempool)
+    void operator()(rte_mempool* mempool) {
+        if ( !mempool )
             return;
 
         rte_mempool_free(mempool);
@@ -74,22 +74,22 @@ class dpdk_mempool : noncopyable
 public:
     dpdk_mempool(uint32_t num_elements, uint16_t cache_size, uint16_t data_size, uint16_t private_size);
 
-    uint32_t get_capacity();
+    uint32_t     get_capacity();
 
-    uint32_t get_num_allocated();
+    uint32_t     get_num_allocated();
 
-    int         bulk_alloc(rte_mbuf** mbufs, uint16_t count);
+    int          bulk_alloc(rte_mbuf** mbufs, uint16_t count);
 
-    int         bulk_alloc(mbuf_vec_base& mbuf_vec, uint16_t count);
+    int          bulk_alloc(mbuf_vec_base& mbuf_vec, uint16_t count);
 
-    static void bulk_free(rte_mbuf** mbufs, uint16_t count);
+    static void  bulk_free(rte_mbuf** mbufs, uint16_t count);
 
     rte_mempool* get_native() {
         return mempool.get();
     }
 
 private:
-    std::unique_ptr<rte_mempool, mempool_deleter> mempool;
+    std::unique_ptr< rte_mempool, mempool_deleter > mempool;
 };
 
 
@@ -262,14 +262,14 @@ private:
 
 struct rte_ring_deleter
 {
-    void operator() (rte_ring* ring_ptr) {
-        if(!ring_ptr)
+    void operator()(rte_ring* ring_ptr) {
+        if ( !ring_ptr )
             return;
 
-        while(rte_ring_count(ring_ptr) > 0) {
+        while ( rte_ring_count(ring_ptr) > 0 ) {
             rte_mbuf* mbuf = nullptr;
 
-            if(!rte_ring_dequeue(ring_ptr, (void**) &mbuf)) {
+            if ( !rte_ring_dequeue(ring_ptr, (void**) &mbuf) ) {
                 dpdk_mempool::bulk_free(&mbuf, 1U);
             }
         }
@@ -285,18 +285,19 @@ public:
 
     mbuf_ring(const std::string& name, int socket_id, size_t capacity);
 
-    void init(size_t capacity);
+    void              init(size_t capacity);
 
-    size_t get_capacity() const;
+    size_t            get_capacity() const;
 
     __inline uint16_t enqueue(mbuf_vec_base& mbuf_vec) {
         uint16_t num = mbuf_vec.size();
 
-        if(num > rte_ring_free_count(ring.get())) {
+        if ( num > rte_ring_free_count(ring.get()) ) {
             num = rte_ring_free_count(ring.get());
         }
 
-        auto rc = (uint16_t) rte_ring_enqueue_bulk(ring.get(), reinterpret_cast< void* const* >(mbuf_vec.data()), num, nullptr);
+        auto rc = (uint16_t) rte_ring_enqueue_bulk(
+            ring.get(), reinterpret_cast< void* const* >(mbuf_vec.data()), num, nullptr);
 
         mbuf_vec.consume_front(num);
 
@@ -306,11 +307,12 @@ public:
     __inline uint16_t dequeue(mbuf_vec_base& mbuf_vec) {
         uint16_t num = mbuf_vec.num_free_tail();
 
-        if(num > rte_ring_count(ring.get())) {
+        if ( num > rte_ring_count(ring.get()) ) {
             num = rte_ring_count(ring.get());
         }
 
-        auto rc = (uint16_t) rte_ring_dequeue_bulk(ring.get(), reinterpret_cast< void** >(mbuf_vec.data()), num, nullptr);
+        auto rc =
+            (uint16_t) rte_ring_dequeue_bulk(ring.get(), reinterpret_cast< void** >(mbuf_vec.data()), num, nullptr);
 
         mbuf_vec.set_size(rc);
 
@@ -318,10 +320,10 @@ public:
     }
 
 private:
-    std::string name;
-    int socket_id;
+    std::string                                   name;
+    int                                           socket_id;
 
-    std::unique_ptr<rte_ring, rte_ring_deleter> ring;
+    std::unique_ptr< rte_ring, rte_ring_deleter > ring;
 };
 
 void dpdk_eal_init(std::vector< std::string > flags);

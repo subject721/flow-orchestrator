@@ -14,7 +14,6 @@ class lua_engine;
 class lua_attachment_base : noncopyable
 {
 public:
-
     virtual ~lua_attachment_base();
 
 private:
@@ -22,7 +21,6 @@ private:
 
     friend class lua_engine;
 };
-
 
 
 class lua_engine : noncopyable
@@ -69,9 +67,8 @@ public:
     }
 
     template < class TRet, class... TArgs >
-    void set_function(const std::string& name, std::function<TRet(TArgs...)> func) {
+    void set_function(const std::string& name, std::function< TRet(TArgs...) > func) {
         state.set_function(name, func);
-
     }
 
     void detach_all(lua_attachment_base& attachment);
@@ -79,15 +76,15 @@ public:
     void dump_state();
 
 private:
-    void       _binding_log(int level, std::string msg);
+    void                             _binding_log(int level, std::string msg);
 
-    static int _binding_exception_handler(lua_State*                             L,
-                                          sol::optional< const std::exception& > maybe_exception,
-                                          sol::string_view                       description);
+    static int                       _binding_exception_handler(lua_State*                             L,
+                                                                sol::optional< const std::exception& > maybe_exception,
+                                                                sol::string_view                       description);
 
-    sol::state state;
+    sol::state                       state;
 
-    std::mutex resource_lock;
+    std::mutex                       resource_lock;
 
-    std::set<lua_attachment_base*> attachments;
+    std::set< lua_attachment_base* > attachments;
 };

@@ -2,7 +2,7 @@
 
 
 lua_attachment_base::~lua_attachment_base() {
-    if(lua_engine) {
+    if ( lua_engine ) {
         lua_engine->detach_all(*this);
 
         lua_engine = nullptr;
@@ -28,31 +28,31 @@ void lua_engine::load_stdlibs() {
 }
 
 void lua_engine::execute(const std::string& str) {
-    std::lock_guard<std::mutex> guard(resource_lock);
+    std::lock_guard< std::mutex > guard(resource_lock);
 
     try {
         state.script(str);
     } catch ( const std::exception& e ) {
-        log(LOG_LEVEL_ERROR, format("Error while executing lua script %1%") % e.what());
+        log(LOG_LEVEL_ERROR, fmt::format("Error while executing lua script {}", e.what()));
     }
 }
 
 void lua_engine::detach_all(lua_attachment_base& attachment) {
-    std::lock_guard<std::mutex> guard(resource_lock);
+    std::lock_guard< std::mutex > guard(resource_lock);
 }
 
 void lua_engine::dump_state() {
-    for(const auto& e : state) {
-        if(e.first.valid()) {
-            std::string name = e.first.as<std::string>();
+    for ( const auto& e : state ) {
+        if ( e.first.valid() ) {
+            std::string name = e.first.as< std::string >();
 
-            log(LOG_LEVEL_INFO, format("global element %1%") % name);
+            log(LOG_LEVEL_INFO, fmt::format("global element {}", name));
         }
     }
 }
 
 void lua_engine::_binding_log(int level, std::string msg) {
-    log((log_level) level, format("<lua> %1%") % msg);
+    log((log_level) level, fmt::format("<lua> {}", msg));
 }
 
 int lua_engine::_binding_exception_handler(lua_State*                             L,
@@ -62,12 +62,10 @@ int lua_engine::_binding_exception_handler(lua_State*                           
     if ( maybe_exception ) {
         const std::exception& ex = *maybe_exception;
 
-        log(LOG_LEVEL_ERROR, format("lua exception: %1%") % ex.what());
+        log(LOG_LEVEL_ERROR, fmt::format("lua exception: {}", ex.what()));
     } else {
-        log(LOG_LEVEL_ERROR, format("lua msg: %1%") % std::string(description.data(), description.size()));
+        log(LOG_LEVEL_ERROR, fmt::format("lua msg: {}", std::string(description.data(), description.size())));
     }
 
     return sol::stack::push(L, description);
 }
-
-

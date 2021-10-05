@@ -28,7 +28,7 @@ dpdk_ethdev::dpdk_ethdev(uint64_t                        port_id,
 
     if ( status ) {
         throw std::runtime_error(
-            (boost::format("could not get eth device info for port %1%: %2%") % port_id % rte_strerror(status)).str());
+            fmt::format("could not get eth device info for port {}: {}}", port_id, rte_strerror(status)));
     }
 
     this->port_id = port_id;
@@ -51,16 +51,14 @@ dpdk_ethdev::dpdk_ethdev(uint64_t                        port_id,
     status = rte_eth_dev_configure(port_id, num_rx_queues, num_tx_queues, &local_dev_conf);
 
     if ( status < 0 ) {
-        throw std::runtime_error(
-            (boost::format("could not configure eth device %1%: %2%") % port_id % rte_strerror(status)).str());
+        throw std::runtime_error(fmt::format("could not configure eth device {}: {}", port_id, rte_strerror(status)));
     }
 
     status = rte_eth_dev_adjust_nb_rx_tx_desc(port_id, &num_rx_descriptors, &num_tx_descriptors);
 
     if ( status < 0 ) {
-        throw std::runtime_error((boost::format("could not adjust number of rx/tx descriptors for device %1%: %2%") %
-                                  port_id % rte_strerror(status))
-                                     .str());
+        throw std::runtime_error(fmt::format(
+            "could not adjust number of rx/tx descriptors for device {}: {}", port_id, rte_strerror(status)));
     }
 
     rte_eth_txconf tx_conf = local_dev_info.default_txconf;
@@ -74,9 +72,8 @@ dpdk_ethdev::dpdk_ethdev(uint64_t                        port_id,
             rte_eth_tx_queue_setup(port_id, queue_index, num_tx_descriptors, rte_eth_dev_socket_id(port_id), &tx_conf);
 
         if ( status < 0 ) {
-            throw std::runtime_error((boost::format("could not config tx queue %3% device %1%: %2%") % port_id %
-                                      rte_strerror(status) % queue_index)
-                                         .str());
+            throw std::runtime_error(
+                fmt::format("could not config tx queue {} device {}: {}}", queue_index, port_id, rte_strerror(status)));
         }
     }
 
@@ -89,9 +86,8 @@ dpdk_ethdev::dpdk_ethdev(uint64_t                        port_id,
                                         this->mempool->get_native());
 
         if ( status < 0 ) {
-            throw std::runtime_error((boost::format("could not config rx queue %3% device %1%: %2%") % port_id %
-                                      rte_strerror(status) % queue_index)
-                                         .str());
+            throw std::runtime_error(
+                fmt::format("could not config rx queue {} device {}: {}", queue_index, port_id, rte_strerror(status)));
         }
     }
 
@@ -99,8 +95,7 @@ dpdk_ethdev::dpdk_ethdev(uint64_t                        port_id,
 
     if ( status < 0 ) {
         throw std::runtime_error(
-            (boost::format("could not disable packet type filter for device %1%: %2%") % port_id % rte_strerror(status))
-                .str());
+            fmt::format("could not disable packet type filter for device {}: {}", port_id, rte_strerror(status)));
     }
 }
 
@@ -130,8 +125,7 @@ void dpdk_ethdev::start() {
     int status = rte_eth_dev_start(port_id);
 
     if ( status < 0 ) {
-        throw std::runtime_error(
-            (boost::format("could not start eth device %1%: %2%") % port_id % rte_strerror(status)).str());
+        throw std::runtime_error(fmt::format("could not start eth device {}: {}", port_id, rte_strerror(status)));
     }
 
     started = true;
@@ -142,8 +136,7 @@ void dpdk_ethdev::stop() {
         int status = rte_eth_dev_stop(port_id);
 
         if ( status < 0 ) {
-            throw std::runtime_error(
-                (boost::format("could not stop eth device %1%: %2%") % port_id % rte_strerror(status)).str());
+            throw std::runtime_error(fmt::format("could not stop eth device {}: {}", port_id, rte_strerror(status)));
         }
 
         started = false;
@@ -169,7 +162,7 @@ rte_ether_addr dpdk_ethdev::get_mac_addr() const {
 
     if ( status < 0 ) {
         throw std::runtime_error(
-            (boost::format("could not get mac address of eth device %1%: %2%") % port_id % rte_strerror(status)).str());
+            fmt::format("could not get mac address of eth device {}: {}", port_id, rte_strerror(status)));
     }
 
     return mac_addr;
@@ -185,7 +178,7 @@ dpdk_ethdev::eth_device_info dpdk_ethdev::get_device_info(uint64_t port_id) {
 
     if ( status ) {
         throw std::runtime_error(
-            (boost::format("could not get eth device info for port %1%: %2%") % port_id % rte_strerror(status)).str());
+            fmt::format("could not get eth device info for port {}: {}", port_id, rte_strerror(status)));
     }
 
     std::string dev_name(dev_info.device->name);
