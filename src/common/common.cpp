@@ -32,15 +32,15 @@ void _log(log_message msg) {
 
     ptime       now       = microsec_clock::local_time();
 
-    auto&       stream    = (msg.get_log_level() >= LOG_LEVEL_WARN) ? std::cerr : std::cout;
+    auto&       stream    = (msg.get_log_level() >= LOG_WARN) ? std::cerr : std::cout;
 
     const char* color_str = NO_COLOR;
 
-    if ( msg.get_log_level() == LOG_LEVEL_WARN ) {
+    if ( msg.get_log_level() == LOG_WARN ) {
         color_str = ORANGE_COLOR;
-    } else if ( msg.get_log_level() == LOG_LEVEL_ERROR ) {
+    } else if ( msg.get_log_level() == LOG_ERROR ) {
         color_str = RED_COLOR;
-    } else if ( msg.get_log_level() == LOG_LEVEL_INFO ) {
+    } else if ( msg.get_log_level() == LOG_INFO ) {
         color_str = GREEN_COLOR;
     }
 
@@ -58,7 +58,7 @@ std::string load_file_as_string(const std::filesystem::path& file_path) {
             throw std::runtime_error("could not open file for reading");
         }
 
-        size_t file_size = 0;
+        size_t file_size;
 
         file_stream.seekg(0, std::ios::end);
         file_size = file_stream.tellg();

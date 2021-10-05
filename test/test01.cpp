@@ -43,9 +43,9 @@ int main(int argc, char** argv) {
 
         std::chrono::nanoseconds duration = end - start;
 
-        log(LOG_LEVEL_INFO, "lua function returned {} and call took {}ns", ret.value_or(0), duration.count());
+        log(LOG_INFO, "lua function returned {} and call took {}ns", ret.value_or(0), duration.count());
     } catch ( const std::exception& e ) {
-        log(LOG_LEVEL_ERROR, "lua call richtig verkackt: {}", e.what());
+        log(LOG_ERROR, "lua call richtig verkackt: {}", e.what());
     }
 
     return 0;

@@ -22,20 +22,14 @@ int lcore_thread::lcore_thread_launch_trampoline(void* arg) {
 
     try {
         if ( t->func ) {
-            {
-                std::lock_guard< std::mutex > guard(t->lock);
-
-                t->running = true;
-            }
+            t->running.store(true);
 
             t->func();
 
             {
                 std::lock_guard< std::mutex > guard(t->lock);
 
-                t->running = false;
-
-                std::atomic_thread_fence(std::memory_order_seq_cst);
+                t->running.store(false);
 
                 t->event.notify_all();
             }
@@ -50,11 +44,11 @@ lcore_thread::~lcore_thread() {}
 void lcore_thread::join() {
     std::unique_lock< std::mutex > lk(lock);
 
-    event.wait(lk, [this]() { return !running; });
+    event.wait(lk, [this]() { return !running.load(); });
 }
 
 bool lcore_thread::is_joinable() {
-    return running;
+    return running.load();
 }
 
 void lcore_thread::try_launch() {

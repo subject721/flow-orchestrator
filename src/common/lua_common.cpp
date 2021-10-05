@@ -13,10 +13,10 @@ lua_attachment_base::~lua_attachment_base() {
 lua_engine::lua_engine() {
     state.set_exception_handler(lua_engine::_binding_exception_handler);
 
-    state.set("DEBUG", (int) LOG_LEVEL_DEBUG);
-    state.set("INFO", (int) LOG_LEVEL_INFO);
-    state.set("WARN", (int) LOG_LEVEL_WARN);
-    state.set("ERROR", (int) LOG_LEVEL_ERROR);
+    state.set("DEBUG", (int) LOG_DEBUG);
+    state.set("INFO", (int) LOG_INFO);
+    state.set("WARN", (int) LOG_WARN);
+    state.set("ERROR", (int) LOG_ERROR);
 
     state.set_function("log", [this](int level, std::string msg) { this->_binding_log(level, std::move(msg)); });
 }
@@ -33,7 +33,7 @@ void lua_engine::execute(const std::string& str) {
     try {
         state.script(str);
     } catch ( const std::exception& e ) {
-        log(LOG_LEVEL_ERROR, fmt::format("Error while executing lua script {}", e.what()));
+        log(LOG_ERROR, fmt::format("Error while executing lua script {}", e.what()));
     }
 }
 
@@ -46,7 +46,7 @@ void lua_engine::dump_state() {
         if ( e.first.valid() ) {
             std::string name = e.first.as< std::string >();
 
-            log(LOG_LEVEL_INFO, fmt::format("global element {}", name));
+            log(LOG_INFO, fmt::format("global element {}", name));
         }
     }
 }
@@ -62,9 +62,9 @@ int lua_engine::_binding_exception_handler(lua_State*                           
     if ( maybe_exception ) {
         const std::exception& ex = *maybe_exception;
 
-        log(LOG_LEVEL_ERROR, fmt::format("lua exception: {}", ex.what()));
+        log(LOG_ERROR, fmt::format("lua exception: {}", ex.what()));
     } else {
-        log(LOG_LEVEL_ERROR, fmt::format("lua msg: {}", std::string(description.data(), description.size())));
+        log(LOG_ERROR, fmt::format("lua msg: {}", std::string(description.data(), description.size())));
     }
 
     return sol::stack::push(L, description);

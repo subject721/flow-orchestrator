@@ -28,10 +28,10 @@ protected:
 
 enum log_level
 {
-    LOG_LEVEL_DEBUG,
-    LOG_LEVEL_INFO,
-    LOG_LEVEL_WARN,
-    LOG_LEVEL_ERROR
+    LOG_DEBUG,
+    LOG_INFO,
+    LOG_WARN,
+    LOG_ERROR
 };
 
 class log_message
@@ -45,8 +45,6 @@ public:
         level(level), data(fmt::format(cstr, std::forward< TArgs >(args)...)) {}
 
     log_message(log_level level, std::string str) : level(level), data(std::move(str)) {}
-
-    // log_message(log_level level, const format& fmt) : log_message(level, fmt.str()) {}
 
     log_message(const log_message&)     = default;
     log_message(log_message&&) noexcept = default;
@@ -78,13 +76,13 @@ public:
 
     static const char* log_level_str(log_level level) {
         switch ( level ) {
-            case LOG_LEVEL_DEBUG:
+            case LOG_DEBUG:
                 return "debug";
-            case LOG_LEVEL_INFO:
+            case LOG_INFO:
                 return "info";
-            case LOG_LEVEL_WARN:
+            case LOG_WARN:
                 return "warn";
-            case LOG_LEVEL_ERROR:
+            case LOG_ERROR:
                 return "error";
             default:
                 throw std::invalid_argument("unknown log level");

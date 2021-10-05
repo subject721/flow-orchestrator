@@ -50,7 +50,7 @@ private:
 
     std::function< void() > func;
 
-    bool                    running;
+    std::atomic_bool        running;
 
     std::mutex              lock;
 

@@ -7,7 +7,7 @@ int main(int argc, char** argv) {
     try {
         dpdk_eal_init({"--no-shconf", "--in-memory"});
     } catch ( const std::exception& e ) {
-        log(LOG_LEVEL_ERROR, "could not init dpdk eal: {}", e.what());
+        log(LOG_ERROR, "could not init dpdk eal: {}", e.what());
 
         return 1;
     }
@@ -23,25 +23,25 @@ int main(int argc, char** argv) {
 
         uint16_t              burst_size = 16;
 
-        log(LOG_LEVEL_INFO, "mempool alloc stats after init: {}/{}", mempool.get_num_allocated(), mempool.get_capacity());
+        log(LOG_INFO, "mempool alloc stats after init: {}/{}", mempool.get_num_allocated(), mempool.get_capacity());
 
         if ( mempool.bulk_alloc(mbuf_vec, burst_size) ) {
             throw std::runtime_error("could not alloc mbufs");
         }
 
-        log(LOG_LEVEL_INFO, "mempool alloc stats after alloc: {}/{}", mempool.get_num_allocated(), mempool.get_capacity());
+        log(LOG_INFO, "mempool alloc stats after alloc: {}/{}", mempool.get_num_allocated(), mempool.get_capacity());
 
         if ( ring.enqueue(mbuf_vec) != burst_size ) {
             throw std::runtime_error("queuing failed");
         }
 
-        log(LOG_LEVEL_INFO, "mempool alloc stats after queue: {}/{}", mempool.get_num_allocated(), mempool.get_capacity());
+        log(LOG_INFO, "mempool alloc stats after queue: {}/{}", mempool.get_num_allocated(), mempool.get_capacity());
 
         if ( ring.dequeue(mbuf_vec_out) != burst_size ) {
             throw std::runtime_error("dequeuing failed");
         }
 
-        log(LOG_LEVEL_INFO, "mempool alloc stats after dequeue: {}/{}", mempool.get_num_allocated(), mempool.get_capacity());
+        log(LOG_INFO, "mempool alloc stats after dequeue: {}/{}", mempool.get_num_allocated(), mempool.get_capacity());
 
         if ( mbuf_vec_out.size() != burst_size ) {
             throw std::runtime_error("mbuf vec wrong size");
@@ -49,9 +49,9 @@ int main(int argc, char** argv) {
 
         mbuf_vec_out.free();
 
-        log(LOG_LEVEL_INFO, "mempool alloc stats after free: {}/{}", mempool.get_num_allocated(), mempool.get_capacity());
+        log(LOG_INFO, "mempool alloc stats after free: {}/{}", mempool.get_num_allocated(), mempool.get_capacity());
 
-    } catch ( const std::exception& e ) { log(LOG_LEVEL_ERROR, "error while testing ring: {}", e.what()); }
+    } catch ( const std::exception& e ) { log(LOG_ERROR, "error while testing ring: {}", e.what()); }
 
     return 0;
 }

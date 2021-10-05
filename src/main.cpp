@@ -86,6 +86,19 @@ private:
 
 int main(int argc, char** argv) {
 
+    std::string welcome_msg = fmt::format("Running Flow Orchestrator {}", VERSION_STR);
+
+    size_t      padding     = welcome_msg.size() + 4;
+
+    // Taken from the fmt library documentation. It is just too awesome to be not used!
+    fmt::print(
+        "┌{0:─^{2}}┐\n"
+        "│{1: ^{2}}│\n"
+        "└{0:─^{2}}┘\n",
+        "",
+        welcome_msg,
+        padding);
+
     std::signal(SIGINT, signal_handler);
     std::signal(SIGTERM, signal_handler);
     std::signal(SIGUSR1, signal_handler);
