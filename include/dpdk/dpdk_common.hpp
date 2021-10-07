@@ -1,3 +1,9 @@
+/*
+ * SPDX-License-Identifier: BSD-3-Clause
+ * Copyright (c) 2021,  Stefan Seitz
+ *
+ */
+
 #pragma once
 
 #include <common/common.hpp>
@@ -6,8 +12,7 @@
 #include <rte_mbuf.h>
 #include <rte_mempool.h>
 #include <rte_lcore.h>
-#include <rte_ring_core.h>
-#include <rte_ring_elem.h>
+#include <rte_ring.h>
 
 #include <functional>
 

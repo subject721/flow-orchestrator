@@ -1,9 +1,15 @@
+/*
+ * SPDX-License-Identifier: BSD-3-Clause
+ * Copyright (c) 2021,  Stefan Seitz
+ *
+ */
+
 #pragma once
 
 #include <string>
 #include <vector>
 #include <cstdint>
-#include <ctype.h>
+#include <cctype>
 
 #include <mutex>
 #include <memory>
@@ -18,7 +24,7 @@
 
 class noncopyable
 {
-protected:
+public:
     noncopyable()                   = default;
 
     noncopyable(const noncopyable&) = delete;

@@ -6,7 +6,8 @@ flow_orchestrator_sources += files([
     'dpdk/dpdk_ethdev.cpp',
     'flow_base.cpp',
     'flow_processor.cpp',
-    'flow_endpoints.cpp'
+    'flow_endpoints.cpp',
+    'flow_manager.cpp'
 ])
 
 main_source = files('main.cpp')

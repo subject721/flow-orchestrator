@@ -1,3 +1,8 @@
+/*
+ * SPDX-License-Identifier: BSD-3-Clause
+ * Copyright (c) 2021,  Stefan Seitz
+ *
+ */
 
 #include <common/common.hpp>
 
@@ -190,7 +195,7 @@ void flow_orchestrator_app::parse_args(int argc, char** argv) {
 
     pool_size     = (1 << 14);
     cache_size    = 128;
-    dataroom_size = 2000;
+    dataroom_size = RTE_MBUF_DEFAULT_BUF_SIZE;
     private_size  = 256;
 }
 

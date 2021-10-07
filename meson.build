@@ -58,7 +58,8 @@ dep_null = dependency('', required: false)
 
 boost_modules = [
   'system',
-  'program_options'
+  'program_options',
+  'date_time'
 ]
 
 dep_threads = dependency('threads')

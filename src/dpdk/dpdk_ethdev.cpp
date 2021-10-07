@@ -1,3 +1,9 @@
+/*
+ * SPDX-License-Identifier: BSD-3-Clause
+ * Copyright (c) 2021,  Stefan Seitz
+ *
+ */
+
 #include <dpdk/dpdk_ethdev.hpp>
 
 #include <rte_ethdev.h>
