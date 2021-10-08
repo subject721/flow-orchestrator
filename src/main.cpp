@@ -5,11 +5,11 @@
  */
 
 #include <common/common.hpp>
+#include <common/network_utils.hpp>
 
 #include <dpdk/dpdk_common.hpp>
 #include <dpdk/dpdk_ethdev.hpp>
 
-#include <boost/format.hpp>
 #include <boost/program_options.hpp>
 
 #include <config.h>
@@ -26,9 +26,6 @@
 #include <chrono>
 
 namespace po = boost::program_options;
-
-using boost::format;
-
 
 static std::mutex              global_lock;
 
@@ -80,10 +77,10 @@ private:
 
     std::vector< std::string >      device_names;
 
-    uint32_t                        pool_size;
-    uint16_t                        cache_size;
-    uint16_t                        dataroom_size;
-    uint16_t                        private_size;
+    uint32_t                        pool_size {};
+    uint16_t                        cache_size {};
+    uint16_t                        dataroom_size {};
+    uint16_t                        private_size {};
 
     std::shared_ptr< dpdk_mempool > mempool;
 };
@@ -119,8 +116,8 @@ int main(int argc, char** argv) {
     }
 }
 
-flow_orchestrator_app::flow_orchestrator_app(int argc, char** argv) : should_exit(false) {
-
+flow_orchestrator_app::flow_orchestrator_app(int argc, char** argv) :
+    should_exit(false), pool_size(0), cache_size(0), dataroom_size(0), private_size(0) {
     parse_args(argc, argv);
 
     if ( !should_exit ) {
@@ -156,7 +153,7 @@ int flow_orchestrator_app::run() {
 void flow_orchestrator_app::parse_args(int argc, char** argv) {
     po::options_description desc("Allowed options");
 
-    desc.add_options()("help", "produce help message")(
+    desc.add_options()("help", "print help")(
         "dpdk-options", po::value< std::vector< std::string > >(), "dpdk options")(
         "devices", po::value< std::vector< std::string > >());
 
@@ -196,7 +193,7 @@ void flow_orchestrator_app::parse_args(int argc, char** argv) {
     pool_size     = (1 << 14);
     cache_size    = 128;
     dataroom_size = RTE_MBUF_DEFAULT_BUF_SIZE;
-    private_size  = 256;
+    private_size  = align_to_next_multiple(sizeof(packet_private_info), (size_t) RTE_MBUF_PRIV_ALIGN);
 }
 
 void flow_orchestrator_app::setup() {

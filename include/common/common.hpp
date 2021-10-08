@@ -109,4 +109,55 @@ void log(TArgs&&... args) {
 }
 
 
+template < class T, class A >
+constexpr auto align_to_next_multiple(T value, A alignment) {
+    static_assert(std::is_unsigned_v<T> && std::is_unsigned_v<A>, "types must be unsigned");
+
+    auto remainder = value % alignment;
+
+    if(remainder) {
+        value += (alignment - remainder);
+    }
+
+    return value;
+}
+
+struct seq
+{
+    using value_type = size_t;
+
+    struct iterator
+    {
+        value_type v;
+
+        constexpr iterator(value_type v) : v(v) {}
+
+        __inline value_type operator* () const noexcept {
+            return v;
+        }
+
+        __inline iterator& operator++ () noexcept {
+            ++v;
+
+            return *this;
+        }
+
+        __inline bool operator == (const iterator& other) const noexcept {
+            return v == other.v;
+        }
+
+        __inline bool operator != (const iterator& other) const noexcept {
+            return v != other.v;
+        }
+    };
+
+    value_type _start;
+    value_type _end;
+
+    constexpr seq(value_type start, value_type end) : _start(start), _end(end) {}
+
+    constexpr iterator begin() const noexcept {return {_start};}
+    constexpr iterator end() const noexcept {return {_end};}
+};
+
 std::string load_file_as_string(const std::filesystem::path& file_path);

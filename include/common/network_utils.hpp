@@ -24,6 +24,7 @@ enum ip_next_proto : uint8_t
     IP_PROTO_AH    = 0x33U,
 };
 
+constexpr const uint16_t PORT_ID_BROADCAST = 0xffff;
 
 using flow_hash = uint64_t;
 
@@ -40,7 +41,16 @@ struct flow_info_ipv4
 
     uint8_t        ipv4_proto;
 
-    uint16_t       mark;
+
+    uint64_t       mark;
+
+    __inline bool get_mark_bit(uint8_t idx) const noexcept {
+        return (mark & (1 << idx));
+    }
+
+    __inline void set_mark_bit(uint8_t idx) noexcept {
+        mark |= (1 << idx);
+    }
 };
 
 struct packet_private_info
@@ -61,6 +71,10 @@ struct packet_private_info
     uint16_t        vlan;
 
     uint8_t         ipv4_type;
+
+    uint16_t        ipv4_len;
+
+    bool            is_fragment;
 };
 
 // NOTE: It is blatantly assumed the host endianness is always little-endian.
@@ -73,6 +87,22 @@ struct ether_type_info
     static constexpr const rte_be16_t ether_type_be   = (ether_type_host >> 8) | ((ether_type_host & 0x00ffU) << 8);
 };
 
+
+static __inline void get_ether_header_info(rte_ether_hdr* ether_header, uint16_t* len, uint16_t* tci, uint16_t* type) {
+    *len = sizeof(rte_ether_hdr);
+
+    if(ether_header->ether_type == ether_type_info<RTE_ETHER_TYPE_VLAN>::ether_type_be) {
+        *len += 4;
+
+        rte_vlan_hdr* vlan_header = reinterpret_cast<rte_vlan_hdr*>(ether_header + 1);
+
+        *tci = vlan_header->vlan_tci;
+        *type = vlan_header->eth_proto;
+    } else {
+        *tci = 0;
+        *type = ether_header->ether_type;
+    }
+}
 
 static __inline void init_flow_info_ipv4(flow_info_ipv4*      flow_info,
                                          const rte_ether_hdr* ether_hdr,

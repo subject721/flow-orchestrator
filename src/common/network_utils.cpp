@@ -8,18 +8,19 @@
 
 #include <rte_jhash.h>
 
+
 static constexpr uint32_t FLOW_HASH_SEED = 0x623fca21U;
 
-bool                      calc_flow_hash(rte_mbuf* mbuf, flow_hash* flow_hash) {
+bool calc_flow_hash(rte_mbuf* mbuf, flow_hash* flow_hash) {
 
-    const rte_ether_hdr*       ether_header = rte_pktmbuf_mtod_offset(mbuf, struct rte_ether_hdr*, 0);
+    const rte_ether_hdr* ether_header = rte_pktmbuf_mtod_offset(mbuf, struct rte_ether_hdr*, 0);
 
     const packet_private_info* packet_info = reinterpret_cast< const packet_private_info* >(rte_mbuf_to_priv(mbuf));
 
     // Interpret the two mac addresses as three 32bit integers to make hashing more easy:
     const auto* mac_addr_data32b = (const uint32_t*) ether_header->d_addr.addr_bytes;
 
-    uint32_t    h = rte_jhash_3words(mac_addr_data32b[0], mac_addr_data32b[1], mac_addr_data32b[2], FLOW_HASH_SEED);
+    uint32_t h = rte_jhash_3words(mac_addr_data32b[0], mac_addr_data32b[1], mac_addr_data32b[2], FLOW_HASH_SEED);
 
     if ( ether_header->ether_type == ether_type_info< RTE_ETHER_TYPE_IPV4 >::ether_type_be ) {
         const rte_ipv4_hdr* ipv4_header = rte_pktmbuf_mtod_offset(mbuf, struct rte_ipv4_hdr*, packet_info->l3_offset);

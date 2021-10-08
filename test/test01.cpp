@@ -78,6 +78,7 @@ int main(int argc, char** argv) {
 
     c(func1, {"1337", "Foobar"});
 
+
     lua_engine lua;
 
     lua.load_stdlibs();

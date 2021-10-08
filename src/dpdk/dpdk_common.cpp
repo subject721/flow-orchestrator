@@ -5,6 +5,7 @@
  */
 
 #include <dpdk/dpdk_common.hpp>
+#include <utility>
 
 #include <rte_eal.h>
 #include <rte_launch.h>
@@ -17,9 +18,9 @@ using namespace std;
 
 
 int lcore_thread::lcore_thread_launch_trampoline(void* arg) {
-    lcore_thread* t               = reinterpret_cast< lcore_thread* >(arg);
+    lcore_thread* t = reinterpret_cast< lcore_thread* >(arg);
 
-    uint32_t      actual_lcore_id = rte_lcore_id();
+    uint32_t actual_lcore_id = rte_lcore_id();
 
     if ( t->lcore_id != actual_lcore_id ) {
 
@@ -106,10 +107,23 @@ void dpdk_mempool::bulk_free(rte_mbuf** mbufs, uint16_t count) {
     for ( uint16_t index = 0; index < count; ++index ) { rte_pktmbuf_free(mbufs[index]); }
 }
 
-mbuf_ring::mbuf_ring(const std::string& name, int socket_id) : name(name), socket_id(socket_id) {}
+mbuf_ring::mbuf_ring(std::string name, int socket_id) : name(std::move(name)), socket_id(socket_id) {}
 
-mbuf_ring::mbuf_ring(const std::string& name, int socket_id, size_t capacity) : mbuf_ring(name, socket_id) {
+mbuf_ring::mbuf_ring(std::string name, int socket_id, size_t capacity) : mbuf_ring(std::move(name), socket_id) {
     init(capacity);
+}
+
+mbuf_ring::mbuf_ring(mbuf_ring&& other) noexcept :
+    name(std::move(other.name)), socket_id(other.socket_id), ring(std::move(other.ring)) {}
+
+mbuf_ring& mbuf_ring::operator=(mbuf_ring&& other) noexcept {
+    if ( this != std::addressof(other) ) {
+        name      = std::move(other.name);
+        socket_id = other.socket_id;
+        ring      = std::move(other.ring);
+    }
+
+    return *this;
 }
 
 void mbuf_ring::init(size_t capacity) {
@@ -117,7 +131,7 @@ void mbuf_ring::init(size_t capacity) {
         throw std::runtime_error("ring is already initialized");
     }
 
-    auto* new_ring_ptr = rte_ring_create(name.c_str(), capacity, socket_id, RING_F_SP_ENQ | RING_F_SC_DEQ);
+    auto* new_ring_ptr = rte_ring_create(name.c_str(), capacity, socket_id, RING_F_MP_HTS_ENQ | RING_F_SC_DEQ);
 
     if ( !new_ring_ptr ) {
         int error_code = rte_errno;
@@ -141,7 +155,7 @@ size_t mbuf_ring::get_capacity() const {
 void dpdk_eal_init(std::vector< std::string > flags) {
     std::vector< std::string > flag_list = std::move(flags);
 
-    std::vector< char* >       pointer_list;
+    std::vector< char* > pointer_list;
 
     for ( auto& flag : flag_list ) { pointer_list.push_back(flag.data()); }
 

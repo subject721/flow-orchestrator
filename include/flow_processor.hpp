@@ -28,3 +28,36 @@ private:
 
 
 };
+
+
+class ingress_packet_validator : public flow_processor
+{
+public:
+    ingress_packet_validator(std::string name, std::shared_ptr<dpdk_mempool> mempool);
+
+    ~ingress_packet_validator() override = default;
+
+    uint16_t process(mbuf_vec_base& mbuf_vec) override;
+
+    void set_rx_port_id(uint16_t new_rx_port_id) {
+        rx_port_id = new_rx_port_id;
+    }
+
+private:
+    static bool handle_ipv4_packet(const uint8_t* ipv4_header_base, uint16_t l3_len, packet_private_info* packet_info);
+
+    uint16_t rx_port_id;
+};
+
+class flow_classifier : public flow_processor
+{
+public:
+    flow_classifier(std::string name, std::shared_ptr<dpdk_mempool> mempool, std::shared_ptr<flow_database> flow_database_ptr);
+
+    ~flow_classifier() override = default;
+
+    uint16_t process(mbuf_vec_base& mbuf_vec) override;
+
+private:
+    std::shared_ptr<flow_database> flow_database_ptr;
+};

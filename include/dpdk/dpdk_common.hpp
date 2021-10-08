@@ -168,12 +168,33 @@ public:
         tail_offset -= num;
     }
 
+    __inline void clear_packet(uint16_t idx) noexcept {
+        data()[idx] = nullptr;
+    }
+
     __inline void set_size(uint16_t num) noexcept {
         if ( unlikely((tail_offset + num) > capacity()) ) {
             num = capacity() - tail_offset;
         }
 
         tail_offset += num;
+    }
+
+    __inline void repack() noexcept {
+        uint16_t dst_idx = 0;
+
+        for(uint16_t idx = head_offset; idx < tail_offset; ++idx) {
+            if(mbufs[idx]) {
+                if(dst_idx != idx) {
+                    mbufs[dst_idx] = mbufs[idx];
+                }
+
+                ++dst_idx;
+            }
+        }
+
+        head_offset = 0;
+        tail_offset = dst_idx;
     }
 
 protected:
@@ -286,9 +307,13 @@ struct rte_ring_deleter
 class mbuf_ring : noncopyable
 {
 public:
-    mbuf_ring(const std::string& name, int socket_id);
+    mbuf_ring(std::string  name, int socket_id);
 
-    mbuf_ring(const std::string& name, int socket_id, size_t capacity);
+    mbuf_ring(std::string name, int socket_id, size_t capacity);
+
+    mbuf_ring(mbuf_ring&& other) noexcept;
+
+    mbuf_ring& operator = (mbuf_ring&& other) noexcept;
 
     void              init(size_t capacity);
 
@@ -307,6 +332,10 @@ public:
         mbuf_vec.consume_front(num);
 
         return rc;
+    }
+
+    __inline bool enqueue_single(rte_mbuf* mbuf) {
+        return (rte_ring_enqueue(ring.get(), mbuf) == 0);
     }
 
     __inline uint16_t dequeue(mbuf_vec_base& mbuf_vec) {
