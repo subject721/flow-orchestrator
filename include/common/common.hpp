@@ -17,6 +17,7 @@
 #include <variant>
 #include <filesystem>
 #include <limits>
+#include <algorithm>
 
 #include <config.h>
 
@@ -120,6 +121,17 @@ constexpr auto align_to_next_multiple(T value, A alignment) {
     }
 
     return value;
+}
+
+template < class TContainer, class TIterator >
+void as_unique(TContainer& container, TIterator it_first, TIterator it_last) {
+    static_assert(std::is_copy_constructible_v<typename TContainer::value_type>, "Assigned value must be copy constructible");
+
+    for(TIterator it = it_first; it != it_last; ++it) {
+        if(std::find(container.begin(), container.end(), *it) == container.end()) {
+            std::back_inserter(container) = *it;
+        }
+    }
 }
 
 struct seq

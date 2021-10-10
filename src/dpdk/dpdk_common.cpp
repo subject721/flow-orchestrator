@@ -17,6 +17,26 @@
 using namespace std;
 
 
+lcore_info lcore_info::from_lcore_id(uint32_t lcore_id) {
+    return {lcore_id, static_cast<int>(rte_lcore_to_socket_id(lcore_id))};
+}
+
+std::vector<lcore_info> lcore_info::get_available_worker_lcores() {
+    std::vector<lcore_info> lcore_info_list;
+
+    int lcore_id;
+
+    RTE_LCORE_FOREACH_WORKER(lcore_id) {
+        lcore_info_list.push_back(from_lcore_id(lcore_id));
+    }
+
+    return lcore_info_list;
+}
+
+lcore_info lcore_info::get_main_lcore() {
+    return from_lcore_id(rte_get_main_lcore());
+}
+
 int lcore_thread::lcore_thread_launch_trampoline(void* arg) {
     lcore_thread* t = reinterpret_cast< lcore_thread* >(arg);
 

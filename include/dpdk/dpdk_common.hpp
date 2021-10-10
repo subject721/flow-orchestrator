@@ -22,6 +22,29 @@
 
 class mbuf_vec_base;
 
+class lcore_info : public std::pair<uint32_t, int>
+{
+public:
+    lcore_info() : std::pair<uint32_t, int>(LCORE_ID_ANY, SOCKET_ID_ANY) {}
+
+    lcore_info(uint32_t lcore_id, int socket_id) : std::pair<uint32_t, int>(lcore_id, socket_id) {}
+
+    uint32_t get_lcore_id() const noexcept {
+        return first;
+    }
+
+    int get_socket_id() const noexcept {
+        return second;
+    }
+
+    static lcore_info from_lcore_id(uint32_t lcore_id);
+
+    static std::vector<lcore_info> get_available_worker_lcores();
+
+    static lcore_info get_main_lcore();
+};
+
+
 class lcore_thread : noncopyable
 {
 public:
@@ -361,3 +384,5 @@ private:
 };
 
 void dpdk_eal_init(std::vector< std::string > flags);
+
+
