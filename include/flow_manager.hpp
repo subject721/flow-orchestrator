@@ -12,6 +12,7 @@
 #include "flow_base.hpp"
 #include "flow_processor.hpp"
 #include "flow_endpoints.hpp"
+#include "flow_config.hpp"
 
 class packet_proc_flow : noncopyable
 {
@@ -104,14 +105,19 @@ public:
 
     ~flow_manager();
 
+
+
     void start();
 
     void stop();
 
 private:
+    void endpoint_work_callback(const std::vector< size_t >& endpoint_ids);
 
-    struct flow_state;
+    void distributor_work_callback(const std::vector< size_t >& distributor_ids);
 
-    std::unique_ptr<flow_state> flow_state;
+    struct private_data;
+
+    std::unique_ptr<private_data> pdata;
 
 };

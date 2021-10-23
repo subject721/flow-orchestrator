@@ -61,14 +61,16 @@ uint16_t flow_distributor::pull_packets(uint16_t port_id, uint16_t queue_id, mbu
 }
 
 
-struct flow_manager::flow_state
+struct flow_manager::private_data
 {
-    explicit flow_state(uint16_t num_queues) : distributor(MAX_NUM_FLOWS, num_queues, 128) {}
+    explicit private_data(uint16_t num_queues) : distributor(MAX_NUM_FLOWS, num_queues, 128) {}
+
+
 
     flow_distributor distributor;
 
     std::array<std::optional<packet_proc_flow>, MAX_NUM_FLOWS> proc_flows;
-    std::array<std::optional<eth_endpoint>, MAX_NUM_FLOWS> proc_endpoints;
+    std::array<std::optional< eth_dpdk_endpoint >, MAX_NUM_FLOWS> proc_endpoints;
 };
 
 flow_manager::flow_manager() {
@@ -84,6 +86,14 @@ void flow_manager::start() {
 }
 
 void flow_manager::stop() {
+
+}
+
+void flow_manager::endpoint_work_callback(const std::vector< size_t >& endpoint_ids) {
+
+}
+
+void flow_manager::distributor_work_callback(const std::vector< size_t >& distributor_ids) {
 
 }
 

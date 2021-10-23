@@ -12,12 +12,12 @@
 
 #include "flow_base.hpp"
 
-class eth_endpoint : public flow_endpoint_base
+class eth_dpdk_endpoint : public flow_endpoint_base
 {
 public:
-    eth_endpoint(std::string name, std::shared_ptr< dpdk_mempool > mempool, std::unique_ptr< dpdk_ethdev > eth_dev);
+    eth_dpdk_endpoint(std::string name, std::shared_ptr< dpdk_mempool > mempool, std::unique_ptr< dpdk_ethdev > eth_dev);
 
-    ~eth_endpoint() override;
+    ~eth_dpdk_endpoint() override;
 
     uint16_t rx_burst(mbuf_vec_base& mbuf_vec) override;
 

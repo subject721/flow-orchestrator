@@ -3,81 +3,38 @@
 #include <common/lua_common.hpp>
 
 #include <iostream>
-
-void func1(int arg1, const std::string& arg2) {
-    log(LOG_INFO, "func1 -> arg1 = {}, arg2 = {}", arg1, arg2);
-}
+#include <tuple>
 
 
-template < class TProxyType, class Callable, Callable c >
-static void call_wrapped(TProxyType proxy_ptr, const std::vector<std::string>& args) {
-    try {
-        c(proxy_ptr, args);
-    } catch(const std::exception& e) {
 
-    } catch(...) {
-
-    }
-}
-
-template < class T, class V = void >
-struct arg_converter {};
-
-template < class T >
-struct arg_converter<T, std::enable_if_t<std::is_integral_v<T>>>
+struct base_type
 {
-    static T convert(const std::string& s) {
-        return (T) strtol(s.c_str(), nullptr, 10);
+    virtual ~base_type() = default;
+
+    virtual void foo() {
+        log(LOG_INFO, "base_type did foo");
     }
 };
 
-template < class T >
-struct arg_converter<T, std::enable_if_t<std::is_convertible_v<std::string, T>>>
+struct derived_type1 : public base_type
 {
-    template < class V >
-    static decltype(auto) convert(V&& s) {
-        return std::forward<V>(s);
+    ~derived_type1() override = default;
+
+    void foo() override {
+        log(LOG_INFO, "derived_type1 did foo");
     }
 };
 
-
-template <class TFrom, class T>
-struct arg_unwrapper;
-
-template < class TFrom, class... TArgs >
-struct arg_unwrapper<TFrom, void(TArgs...)>
+struct derived_type2 : public base_type
 {
-    using proxy_type = void (*)(TArgs...);
+    ~derived_type2() override = default;
 
-    using arg_tuple = std::tuple<TArgs...>;
-
-
-    template <size_t I, class... TFArgs>
-    static void _call(proxy_type proxy_ptr, const std::vector<std::string>& arg_vec, TFArgs&&... args) {
-        if constexpr (I < sizeof...(TArgs)) {
-            _call<I + 1>(proxy_ptr, arg_vec, std::forward<TFArgs>(args)..., arg_converter<std::tuple_element_t<I, arg_tuple>>::convert(arg_vec[I]));
-        } else {
-            proxy_ptr(std::forward<TFArgs>(args)...);
-        }
-    }
-
-    static void call (proxy_type proxy_ptr, const std::vector<TFrom>& args) {
-        _call<0>(proxy_ptr, args);
+    void foo() override {
+        log(LOG_INFO, "derived_type2 did foo");
     }
 };
-
-void test(void* proxy_ptr, const std::vector<std::string>& v) {
-
-}
 
 int main(int argc, char** argv) {
-
-    arg_unwrapper<std::string, void(int, const std::string&)>::call(func1, {"42", "Hallo"});
-
-    auto c = call_wrapped<arg_unwrapper<std::string, void(int, const std::string&)>::proxy_type, decltype(arg_unwrapper<std::string, void(int, const std::string&)>::call), arg_unwrapper<std::string, void(int, const std::string&)>::call>;
-
-    c(func1, {"1337", "Foobar"});
-
 
     lua_engine lua;
 
@@ -108,16 +65,14 @@ int main(int argc, char** argv) {
 
         lua.call< int >("f", count);
 
-        auto                     start    = std::chrono::high_resolution_clock::now();
-        auto                     ret      = lua.call< int >("f", count);
-        auto                     end      = std::chrono::high_resolution_clock::now();
+        auto start = std::chrono::high_resolution_clock::now();
+        auto ret   = lua.call< int >("f", count);
+        auto end   = std::chrono::high_resolution_clock::now();
 
         std::chrono::nanoseconds duration = end - start;
 
         log(LOG_INFO, "lua function returned {} and call took {}ns", ret.value_or(0), duration.count());
-    } catch ( const std::exception& e ) {
-        log(LOG_ERROR, "lua call richtig verkackt: {}", e.what());
-    }
+    } catch ( const std::exception& e ) { log(LOG_ERROR, "lua call richtig verkackt: {}", e.what()); }
 
     return 0;
 }

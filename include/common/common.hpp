@@ -33,6 +33,28 @@ public:
     void operator=(const noncopyable&) = delete;
 };
 
+template < class T >
+struct is_clonable
+{
+    template < class U >
+    using check_impl = std::is_same<decltype(std::declval<U>().clone()), U>;
+
+    template < class U >
+    static auto check(U&& u) -> std::enable_if_t<check_impl<std::decay_t<U>>::value, std::true_type> {
+        return {};
+    }
+
+    template < class U >
+    static std::false_type check(...) {
+        static_assert(sizeof(U));
+        return {};
+    }
+
+
+    static constexpr const bool value = decltype(check<T>(std::declval<T>()))::value;
+};
+
+
 enum log_level
 {
     LOG_DEBUG,
@@ -132,6 +154,121 @@ void as_unique(TContainer& container, TIterator it_first, TIterator it_last) {
             std::back_inserter(container) = *it;
         }
     }
+}
+
+namespace detail
+{
+template < class T, size_t I, size_t N >
+struct _carr_to_stdarr_helper
+{
+    template < class Tf, class... TArgs >
+    static std::array< T, N > build(Tf (&ca)[N], TArgs&&... args) {
+        return _carr_to_stdarr_helper< T, I + 1, N >::build(ca, std::forward< TArgs >(args)..., ca[I]);
+    }
+};
+
+template < class T, size_t N >
+struct _carr_to_stdarr_helper< T, N, N >
+{
+    template < class Tf, class... TArgs >
+    static std::array< T, N > build(Tf (&ca)[N], TArgs&&... args) {
+        return std::array< T, N > {std::forward< TArgs >(args)...};
+    }
+};
+}
+
+template < class T, size_t N >
+std::array< std::remove_cv_t<T>, N> make_array(T (&c_array)[N]) {
+    using plain_type = std::remove_cv_t<T>;
+
+    return detail::_carr_to_stdarr_helper<plain_type, 0, N>::build(c_array);
+}
+
+template < class T >
+struct factory_element
+{
+    using type = T;
+
+    explicit factory_element(const char* name) : name(name) {}
+
+    template < class... TCtorArgs >
+    T construct(TCtorArgs&&... ctor_args) {
+        return {std::forward< TCtorArgs >(ctor_args)...};
+    }
+
+    template < class TTarget, class... TCtorArgs >
+    auto construct_and_assign(TTarget& target, TCtorArgs&&... ctor_args)
+        // This should prevent assigning types where slicing occurs during assignment
+        -> std::enable_if_t< std::is_trivially_assignable_v< TTarget, T > && (sizeof(T) == sizeof(TTarget)) > {
+
+        target = T(std::forward< TCtorArgs >(ctor_args)...);
+    }
+
+    template < class TTarget, class... TCtorArgs >
+    void construct_and_assign(std::unique_ptr< TTarget >& target, TCtorArgs&&... ctor_args) {
+        target = std::make_unique< T >(std::forward< TCtorArgs >(ctor_args)...);
+    }
+
+    template < class TTarget, class... TCtorArgs >
+    void construct_and_assign(std::shared_ptr< TTarget >& target, TCtorArgs&&... ctor_args) {
+        target = std::make_shared< T >(std::forward< TCtorArgs >(ctor_args)...);
+    }
+
+    const char* name;
+};
+
+template < class TTuple, size_t I = 0, size_t N = std::tuple_size_v< TTuple > >
+struct factory_tuple_iterator
+{
+    template < class TTarget, class... TArgs >
+    static void check_and_create(TTuple& t, const std::string& target_name, TTarget& target, TArgs&&... args) {
+        if ( target_name == std::get< I >(t).name ) {
+            std::get< I >(t).construct_and_assign(target, std::forward< TArgs >(args)...);
+
+            return;
+        } else {
+            factory_tuple_iterator< TTuple, I + 1, N >::check_and_create(
+                t, target_name, target, std::forward< TArgs >(args)...);
+        }
+    }
+};
+
+template < class TTuple, size_t N >
+struct factory_tuple_iterator< TTuple, N, N >
+{
+    template < class TTarget, class... TArgs >
+    static void check_and_create(TTuple& t, const std::string& target_name, TTarget& target, TArgs&&... args) {
+        throw std::runtime_error("invalid factory name");
+    }
+};
+
+template < class TBaseClass, class... TCreationTypes >
+struct factory_collection
+{
+    using base_class = TBaseClass;
+
+    using factory_container_type = std::tuple< factory_element< TCreationTypes >... >;
+
+    factory_container_type factories;
+
+    explicit factory_collection(factory_container_type f) : factories(std::move(f)) {}
+
+    template < class TNext >
+    auto append(const char* name) {
+        return factory_collection< TBaseClass, TCreationTypes..., TNext >(
+            std::tuple_cat(factories, std::tuple< factory_element< TNext > >(name)));
+    }
+
+    template < class TTarget, class... TArgs >
+    void construct_and_assign(TTarget& target, const std::string& target_name, TArgs&&... args) {
+        factory_tuple_iterator< factory_container_type >::check_and_create(
+            factories, target_name, target, std::forward< TArgs >(args)...);
+    }
+};
+
+template < class TBaseClass >
+auto create_factory() {
+    return factory_collection< TBaseClass >({});
 }
 
 struct seq

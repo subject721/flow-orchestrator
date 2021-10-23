@@ -10,6 +10,9 @@
 flow_node_base::flow_node_base(std::string name, std::shared_ptr< dpdk_mempool > mempool) :
     name(std::move(name)), mempool(std::move(mempool)) {}
 
+flow_node_base::flow_node_base(flow_node_base&& other) noexcept :
+    name(std::move(other.name)), mempool(std::move(other.mempool)) {}
+
 const std::string& flow_node_base::get_name() const noexcept {
     return name;
 }

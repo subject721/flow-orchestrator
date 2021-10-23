@@ -9,22 +9,27 @@
 
 #include <forward_list>
 
+
 template < class TExecutionPolicy, class TFlowManager >
-class flow_executor
+class flow_executor : public flow_executor_base<TFlowManager>
 {
 public:
     using execution_policy_type = TExecutionPolicy;
 
-    using flow_manager_type = TFlowManager;
+    using flow_manager_type = typename flow_executor_base<TFlowManager>::flow_manager_type;
+    using worker_callback_type = typename flow_executor_base<TFlowManager>::worker_callback_type;
 
-    using worker_callback_type = void (flow_manager_type::*)(const std::vector< size_t >&);
 
-    flow_executor(flow_manager_type& flow_manager) : flow_manager(flow_manager) {}
+    flow_executor(flow_manager_type& flow_manager) : flow_executor_base<TFlowManager>(flow_manager) {}
+
+    ~flow_executor() override {
+        stop();
+    }
 
     // TODO: Add support for multiple queues
     void setup(const std::vector< int >& endpoint_sockets,
                size_t                    num_distributors,
-               std::vector< lcore_info > p_available_lcores) {
+               std::vector< lcore_info > p_available_lcores) override {
         available_lcores = std::move(p_available_lcores);
 
         size_t num_required_lcores = get_min_num_lcores(endpoint_sockets.size(), num_distributors, 1);
@@ -74,7 +79,11 @@ public:
         }
     }
 
-    void start(worker_callback_type endpoint_callback, worker_callback_type distributor_callback) {
+    void start(worker_callback_type endpoint_callback, worker_callback_type distributor_callback) override {
+        if(run_flag.load()) {
+            return;
+        }
+
         run_flag.store(true);
 
         // Find all execution targets per lcore
@@ -92,7 +101,7 @@ public:
             lcore_threads.emplace_front(distributor_mapping.first,
                                         [this, dist_ids = std::move(distributor_indicies), distributor_callback]() {
                                             while ( run_flag.load() ) {
-                                                (flow_manager.*distributor_callback)(dist_ids);
+                                                (this->get_flow_manager().*distributor_callback)(dist_ids);
                                             }
                                         });
         }
@@ -103,20 +112,22 @@ public:
             lcore_threads.emplace_front(endpoint_mapping.first,
                                         [this, dist_ids = std::move(endpoint_indicies), endpoint_callback]() {
                                             while ( run_flag.load() ) {
-                                                (flow_manager.*endpoint_callback)(dist_ids);
+                                                (this->get_flow_manager().*endpoint_callback)(dist_ids);
                                             }
                                         });
         }
     }
 
-    void stop() {
-        run_flag.store(false);
+    void stop() override {
+        if(run_flag.load()) {
+            run_flag.store(false);
 
-        for ( auto& l : lcore_threads ) {
-            l.join();
+            for ( auto& l : lcore_threads ) {
+                l.join();
+            }
+
+            lcore_threads.clear();
         }
-
-        lcore_threads.clear();
     }
 
 private:
@@ -162,9 +173,6 @@ private:
         return endpoint_indicies;
     }
 
-
-    flow_manager_type& flow_manager;
-
     std::vector< lcore_info > available_lcores;
 
     std::vector< lcore_info > endpoint_lcores;
@@ -191,3 +199,14 @@ struct reduced_core_policy
         return 1;
     }
 };
+
+template <class TFlowManager>
+std::unique_ptr<flow_executor_base<TFlowManager>> create_executor(TFlowManager& flow_manager, ExecutionPolicyType policyType) {
+    switch(policyType) {
+        case ExecutionPolicyType::REDUCED_CORE_COUNT_POLICY: {
+            return std::make_unique<flow_executor<reduced_core_policy, TFlowManager>>(flow_manager);
+        }
+        default:
+            throw std::invalid_argument("unknown policy type");
+    }
+}
