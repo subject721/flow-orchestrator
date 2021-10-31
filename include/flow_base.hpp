@@ -18,7 +18,7 @@ enum class ExecutionPolicyType
 class flow_node_base : noncopyable
 {
 public:
-    flow_node_base(std::string name, std::shared_ptr<dpdk_mempool> mempool);
+    flow_node_base(std::string name, std::shared_ptr< dpdk_mempool > mempool);
 
     flow_node_base(flow_node_base&& other) noexcept;
 
@@ -27,7 +27,6 @@ public:
     const std::string& get_name() const noexcept;
 
 protected:
-
     __inline dpdk_mempool* get_mempool() {
         return mempool.get();
     }
@@ -35,13 +34,13 @@ protected:
 private:
     std::string name;
 
-    std::shared_ptr<dpdk_mempool> mempool;
+    std::shared_ptr< dpdk_mempool > mempool;
 };
 
 class flow_endpoint_base : public flow_node_base
 {
 public:
-    flow_endpoint_base(std::string name, std::shared_ptr<dpdk_mempool> mempool);
+    flow_endpoint_base(std::string name, std::shared_ptr< dpdk_mempool > mempool);
 
     ~flow_endpoint_base() override = default;
 
@@ -52,7 +51,6 @@ public:
     virtual uint16_t tx_burst(mbuf_vec_base& mbuf_vec) = 0;
 
 private:
-
 };
 
 class flow_database : noncopyable
@@ -66,10 +64,9 @@ public:
 
 
 private:
-
 };
 
-template <class TFlowManager>
+template < class TFlowManager >
 class flow_executor_base : noncopyable
 {
 public:
@@ -82,8 +79,8 @@ public:
     virtual ~flow_executor_base() = default;
 
     virtual void setup(const std::vector< int >& endpoint_sockets,
-               size_t                    num_distributors,
-               std::vector< lcore_info > p_available_lcores) = 0;
+                       size_t                    num_distributors,
+                       std::vector< lcore_info > p_available_lcores) = 0;
 
     virtual void start(worker_callback_type endpoint_callback, worker_callback_type distributor_callback) = 0;
 
@@ -95,6 +92,5 @@ protected:
     }
 
 private:
-
     flow_manager_type& flow_manager;
 };

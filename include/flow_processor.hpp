@@ -17,7 +17,7 @@
 class flow_processor : public flow_node_base
 {
 public:
-    flow_processor(std::string name, std::shared_ptr<dpdk_mempool> mempool);
+    flow_processor(std::string name, std::shared_ptr< dpdk_mempool > mempool);
 
     ~flow_processor() override = default;
 
@@ -25,15 +25,13 @@ public:
     virtual uint16_t process(mbuf_vec_base& mbuf_vec) = 0;
 
 private:
-
-
 };
 
 
 class ingress_packet_validator : public flow_processor
 {
 public:
-    ingress_packet_validator(std::string name, std::shared_ptr<dpdk_mempool> mempool);
+    ingress_packet_validator(std::string name, std::shared_ptr< dpdk_mempool > mempool);
 
     ~ingress_packet_validator() override = default;
 
@@ -52,12 +50,14 @@ private:
 class flow_classifier : public flow_processor
 {
 public:
-    flow_classifier(std::string name, std::shared_ptr<dpdk_mempool> mempool, std::shared_ptr<flow_database> flow_database_ptr);
+    flow_classifier(std::string                      name,
+                    std::shared_ptr< dpdk_mempool >  mempool,
+                    std::shared_ptr< flow_database > flow_database_ptr);
 
     ~flow_classifier() override = default;
 
     uint16_t process(mbuf_vec_base& mbuf_vec) override;
 
 private:
-    std::shared_ptr<flow_database> flow_database_ptr;
+    std::shared_ptr< flow_database > flow_database_ptr;
 };

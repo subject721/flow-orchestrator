@@ -22,12 +22,12 @@
 
 class mbuf_vec_base;
 
-class lcore_info : public std::pair<uint32_t, int>
+class lcore_info : public std::pair< uint32_t, int >
 {
 public:
-    lcore_info() : std::pair<uint32_t, int>(LCORE_ID_ANY, SOCKET_ID_ANY) {}
+    lcore_info() : std::pair< uint32_t, int >(LCORE_ID_ANY, SOCKET_ID_ANY) {}
 
-    lcore_info(uint32_t lcore_id, int socket_id) : std::pair<uint32_t, int>(lcore_id, socket_id) {}
+    lcore_info(uint32_t lcore_id, int socket_id) : std::pair< uint32_t, int >(lcore_id, socket_id) {}
 
     uint32_t get_lcore_id() const noexcept {
         return first;
@@ -39,7 +39,7 @@ public:
 
     static lcore_info from_lcore_id(uint32_t lcore_id);
 
-    static std::vector<lcore_info> get_available_worker_lcores();
+    static std::vector< lcore_info > get_available_worker_lcores();
 
     static lcore_info get_main_lcore();
 };
@@ -57,9 +57,9 @@ public:
 
     ~lcore_thread();
 
-    void     join();
+    void join();
 
-    bool     is_joinable();
+    bool is_joinable();
 
     uint32_t get_lcore_id() const noexcept {
         return lcore_id;
@@ -70,17 +70,17 @@ public:
     }
 
 private:
-    void                    try_launch();
+    void try_launch();
 
-    static int              lcore_thread_launch_trampoline(void* arg);
+    static int lcore_thread_launch_trampoline(void* arg);
 
-    uint32_t                lcore_id;
+    uint32_t lcore_id;
 
     std::function< void() > func;
 
-    std::atomic_bool        running;
+    std::atomic_bool running;
 
-    std::mutex              lock;
+    std::mutex lock;
 
     std::condition_variable event;
 };
@@ -102,15 +102,15 @@ class dpdk_mempool : noncopyable
 public:
     dpdk_mempool(uint32_t num_elements, uint16_t cache_size, uint16_t data_size, uint16_t private_size);
 
-    uint32_t     get_capacity();
+    uint32_t get_capacity();
 
-    uint32_t     get_num_allocated();
+    uint32_t get_num_allocated();
 
-    int          bulk_alloc(rte_mbuf** mbufs, uint16_t count);
+    int bulk_alloc(rte_mbuf** mbufs, uint16_t count);
 
-    int          bulk_alloc(mbuf_vec_base& mbuf_vec, uint16_t count);
+    int bulk_alloc(mbuf_vec_base& mbuf_vec, uint16_t count);
 
-    static void  bulk_free(rte_mbuf** mbufs, uint16_t count);
+    static void bulk_free(rte_mbuf** mbufs, uint16_t count);
 
     rte_mempool* get_native() {
         return mempool.get();
@@ -206,9 +206,9 @@ public:
     __inline void repack() noexcept {
         uint16_t dst_idx = 0;
 
-        for(uint16_t idx = head_offset; idx < tail_offset; ++idx) {
-            if(mbufs[idx]) {
-                if(dst_idx != idx) {
+        for ( uint16_t idx = head_offset; idx < tail_offset; ++idx ) {
+            if ( mbufs[idx] ) {
+                if ( dst_idx != idx ) {
                     mbufs[dst_idx] = mbufs[idx];
                 }
 
@@ -231,11 +231,11 @@ protected:
 private:
     rte_mbuf** mbufs;
 
-    uint16_t   head_offset;
+    uint16_t head_offset;
 
-    uint16_t   tail_offset;
+    uint16_t tail_offset;
 
-    uint16_t   max_num_mbufs;
+    uint16_t max_num_mbufs;
 };
 
 template < uint16_t MAX_SIZE >
@@ -306,7 +306,7 @@ public:
 private:
     rte_mbuf** mbufs;
 
-    uint16_t   num_mbufs;
+    uint16_t num_mbufs;
 };
 
 struct rte_ring_deleter
@@ -330,17 +330,17 @@ struct rte_ring_deleter
 class mbuf_ring : noncopyable
 {
 public:
-    mbuf_ring(std::string  name, int socket_id);
+    mbuf_ring(std::string name, int socket_id);
 
     mbuf_ring(std::string name, int socket_id, size_t capacity);
 
     mbuf_ring(mbuf_ring&& other) noexcept;
 
-    mbuf_ring& operator = (mbuf_ring&& other) noexcept;
+    mbuf_ring& operator=(mbuf_ring&& other) noexcept;
 
-    void              init(size_t capacity);
+    void init(size_t capacity);
 
-    size_t            get_capacity() const;
+    size_t get_capacity() const;
 
     __inline uint16_t enqueue(mbuf_vec_base& mbuf_vec) {
         uint16_t num = mbuf_vec.size();
@@ -377,12 +377,10 @@ public:
     }
 
 private:
-    std::string                                   name;
-    int                                           socket_id;
+    std::string name;
+    int         socket_id;
 
     std::unique_ptr< rte_ring, rte_ring_deleter > ring;
 };
 
 void dpdk_eal_init(std::vector< std::string > flags);
-
-

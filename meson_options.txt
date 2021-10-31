@@ -1,0 +1,5 @@
+option('use-conan-deps', type : 'boolean', value : false, description: 'Used Conan to fetch dependencies instead of using local packages installed on the system')
+
+option('reduced-simd-level', type: 'boolean', value: false, description: 'Reduce the feature level of used SIMD instructions in order to support older CPU platforms')
+
+option('enable-avx512', type: 'boolean', value: false, description: 'Enable the usage of AVX512 instructions')

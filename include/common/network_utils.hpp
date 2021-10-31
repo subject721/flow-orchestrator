@@ -30,19 +30,19 @@ using flow_hash = uint64_t;
 
 struct flow_info_ipv4
 {
-    uint32_t       src_addr;
-    uint32_t       dst_addr;
+    uint32_t src_addr;
+    uint32_t dst_addr;
 
-    uint16_t       src_port;
-    uint16_t       dst_port;
+    uint16_t src_port;
+    uint16_t dst_port;
 
     rte_ether_addr ether_src;
     rte_ether_addr ether_dst;
 
-    uint8_t        ipv4_proto;
+    uint8_t ipv4_proto;
 
 
-    uint64_t       mark;
+    uint64_t mark;
 
     __inline bool get_mark_bit(uint8_t idx) const noexcept {
         return (mark & (1 << idx));
@@ -59,22 +59,22 @@ struct packet_private_info
     flow_info_ipv4* flow_info;
 
 
-    uint16_t        src_endpoint_id;
-    uint16_t        dst_endpoint_id;
+    uint16_t src_endpoint_id;
+    uint16_t dst_endpoint_id;
 
-    uint16_t        l3_offset;
+    uint16_t l3_offset;
 
-    uint16_t        l4_offset;
+    uint16_t l4_offset;
 
-    uint16_t        ether_type;
+    uint16_t ether_type;
 
-    uint16_t        vlan;
+    uint16_t vlan;
 
-    uint8_t         ipv4_type;
+    uint8_t ipv4_type;
 
-    uint16_t        ipv4_len;
+    uint16_t ipv4_len;
 
-    bool            is_fragment;
+    bool is_fragment;
 };
 
 // NOTE: It is blatantly assumed the host endianness is always little-endian.
@@ -82,24 +82,24 @@ struct packet_private_info
 template < uint16_t ETH_TYPE_HOST >
 struct ether_type_info
 {
-    static constexpr const uint16_t   ether_type_host = ETH_TYPE_HOST;
+    static constexpr const uint16_t ether_type_host = ETH_TYPE_HOST;
 
-    static constexpr const rte_be16_t ether_type_be   = (ether_type_host >> 8) | ((ether_type_host & 0x00ffU) << 8);
+    static constexpr const rte_be16_t ether_type_be = (ether_type_host >> 8) | ((ether_type_host & 0x00ffU) << 8);
 };
 
 
 static __inline void get_ether_header_info(rte_ether_hdr* ether_header, uint16_t* len, uint16_t* tci, uint16_t* type) {
     *len = sizeof(rte_ether_hdr);
 
-    if(ether_header->ether_type == ether_type_info<RTE_ETHER_TYPE_VLAN>::ether_type_be) {
+    if ( ether_header->ether_type == ether_type_info< RTE_ETHER_TYPE_VLAN >::ether_type_be ) {
         *len += 4;
 
-        rte_vlan_hdr* vlan_header = reinterpret_cast<rte_vlan_hdr*>(ether_header + 1);
+        rte_vlan_hdr* vlan_header = reinterpret_cast< rte_vlan_hdr* >(ether_header + 1);
 
-        *tci = vlan_header->vlan_tci;
+        *tci  = vlan_header->vlan_tci;
         *type = vlan_header->eth_proto;
     } else {
-        *tci = 0;
+        *tci  = 0;
         *type = ether_header->ether_type;
     }
 }
@@ -110,8 +110,8 @@ static __inline void init_flow_info_ipv4(flow_info_ipv4*      flow_info,
     rte_ether_addr_copy(&ether_hdr->s_addr, &flow_info->ether_src);
     rte_ether_addr_copy(&ether_hdr->d_addr, &flow_info->ether_dst);
 
-    flow_info->src_addr   = ipv4_hdr->src_addr;
-    flow_info->dst_addr   = ipv4_hdr->dst_addr;
+    flow_info->src_addr = ipv4_hdr->src_addr;
+    flow_info->dst_addr = ipv4_hdr->dst_addr;
 
     flow_info->ipv4_proto = ipv4_hdr->next_proto_id;
 }

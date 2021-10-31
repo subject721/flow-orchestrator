@@ -18,11 +18,11 @@ using namespace std;
 
 
 lcore_info lcore_info::from_lcore_id(uint32_t lcore_id) {
-    return {lcore_id, static_cast<int>(rte_lcore_to_socket_id(lcore_id))};
+    return {lcore_id, static_cast< int >(rte_lcore_to_socket_id(lcore_id))};
 }
 
-std::vector<lcore_info> lcore_info::get_available_worker_lcores() {
-    std::vector<lcore_info> lcore_info_list;
+std::vector< lcore_info > lcore_info::get_available_worker_lcores() {
+    std::vector< lcore_info > lcore_info_list;
 
     int lcore_id;
 
@@ -124,7 +124,9 @@ int dpdk_mempool::bulk_alloc(mbuf_vec_base& mbuf_vec, uint16_t count) {
 }
 
 void dpdk_mempool::bulk_free(rte_mbuf** mbufs, uint16_t count) {
-    for ( uint16_t index = 0; index < count; ++index ) { rte_pktmbuf_free(mbufs[index]); }
+    for ( uint16_t index = 0; index < count; ++index ) {
+        rte_pktmbuf_free(mbufs[index]);
+    }
 }
 
 mbuf_ring::mbuf_ring(std::string name, int socket_id) : name(std::move(name)), socket_id(socket_id) {}
@@ -177,7 +179,9 @@ void dpdk_eal_init(std::vector< std::string > flags) {
 
     std::vector< char* > pointer_list;
 
-    for ( auto& flag : flag_list ) { pointer_list.push_back(flag.data()); }
+    for ( auto& flag : flag_list ) {
+        pointer_list.push_back(flag.data());
+    }
 
     auto rc = rte_eal_init((int) pointer_list.size(), pointer_list.data());
 

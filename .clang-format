@@ -10,7 +10,6 @@ AlignConsecutiveDeclarations: Consecutive
 AlignEscapedNewlines: Left
 AlignOperands: true
 AlignTrailingComments: true
-#AlignArrayOfStructures: Left
 AllowAllArgumentsOnNextLine: true
 AllowAllConstructorInitializersOnNextLine: true
 AllowAllParametersOfDeclarationOnNextLine: true
@@ -145,7 +144,7 @@ SpaceBeforeParens: ControlStatements
 SpaceBeforeRangeBasedForLoopColon: true
 SpaceInEmptyParentheses: false
 SpacesBeforeTrailingComments: 2
-SpacesInAngles: Always
+SpacesInAngles: true
 SpacesInContainerLiterals: true
 SpacesInConditionalStatement: true
 SpacesInCStyleCastParentheses: false

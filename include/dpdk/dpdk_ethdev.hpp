@@ -34,7 +34,7 @@ public:
         }
 
     private:
-        uint64_t    port_id;
+        uint64_t port_id;
 
         std::string name;
     };
@@ -49,34 +49,34 @@ public:
 
     ~dpdk_ethdev();
 
-    void                   start();
+    void start();
 
-    void                   stop();
+    void stop();
 
-    uint16_t               rx_burst(uint16_t queue_id, rte_mbuf** mbufs, uint16_t num_mbufs);
+    uint16_t rx_burst(uint16_t queue_id, rte_mbuf** mbufs, uint16_t num_mbufs);
 
-    uint16_t               tx_burst(uint16_t queue_id, rte_mbuf** mbufs, uint16_t num_mbufs);
+    uint16_t tx_burst(uint16_t queue_id, rte_mbuf** mbufs, uint16_t num_mbufs);
 
-    uint16_t               tx_flush(uint16_t queue_id);
+    uint16_t tx_flush(uint16_t queue_id);
 
-    rte_ether_addr         get_mac_addr() const;
+    rte_ether_addr get_mac_addr() const;
 
     static eth_device_info get_device_info(uint64_t port_id);
 
 private:
-    uint64_t                        port_id;
+    uint64_t port_id;
 
     std::shared_ptr< dpdk_mempool > mempool;
 
-    rte_eth_dev_info                local_dev_info;
+    rte_eth_dev_info local_dev_info;
 
-    rte_eth_conf                    local_dev_conf;
+    rte_eth_conf local_dev_conf;
 
-    bool                            configured;
+    bool configured;
 
-    bool                            started;
+    bool started;
 
-    bool                            is_up;
+    bool is_up;
 };
 
 std::vector< uint64_t > get_available_ethdev_ids();

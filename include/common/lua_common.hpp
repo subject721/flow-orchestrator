@@ -28,6 +28,23 @@ private:
     friend class lua_engine;
 };
 
+template < class T >
+class lua_engine_extension
+{
+public:
+    lua_engine_extension() {
+
+    }
+
+    virtual ~lua_engine_extension() {
+
+    }
+private:
+    lua_engine* engine;
+
+    friend class lua_engine;
+};
+
 
 class lua_engine : noncopyable
 {
@@ -66,9 +83,6 @@ public:
 
     template < class T >
     void set(const char* name, T&& v) {
-        static_assert(std::is_fundamental_v< T > || std::is_pod_v< T >, "T must be trivial data type");
-
-
         state.set(name, std::forward< T >(v));
     }
 
@@ -81,16 +95,17 @@ public:
 
     void dump_state();
 
+
 private:
-    void                             _binding_log(int level, std::string msg);
+    void _binding_log(int level, std::string msg);
 
-    static int                       _binding_exception_handler(lua_State*                             L,
-                                                                sol::optional< const std::exception& > maybe_exception,
-                                                                sol::string_view                       description);
+    static int _binding_exception_handler(lua_State*                             L,
+                                          sol::optional< const std::exception& > maybe_exception,
+                                          sol::string_view                       description);
 
-    sol::state                       state;
+    sol::state state;
 
-    std::mutex                       resource_lock;
+    std::mutex resource_lock;
 
     std::set< lua_attachment_base* > attachments;
 };

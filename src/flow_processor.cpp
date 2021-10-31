@@ -107,8 +107,6 @@ uint16_t flow_classifier::process(mbuf_vec_base& mbuf_vec) {
         flow_hash fhash = 0;
 
         calc_flow_hash(current_packet, &fhash);
-
-
     }
 
     return mbuf_vec.size();

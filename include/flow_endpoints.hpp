@@ -15,7 +15,9 @@
 class eth_dpdk_endpoint : public flow_endpoint_base
 {
 public:
-    eth_dpdk_endpoint(std::string name, std::shared_ptr< dpdk_mempool > mempool, std::unique_ptr< dpdk_ethdev > eth_dev);
+    eth_dpdk_endpoint(std::string                     name,
+                      std::shared_ptr< dpdk_mempool > mempool,
+                      std::unique_ptr< dpdk_ethdev >  eth_dev);
 
     ~eth_dpdk_endpoint() override;
 

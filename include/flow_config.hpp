@@ -1,3 +1,9 @@
+/*
+ * SPDX-License-Identifier: BSD-3-Clause
+ * Copyright (c) 2021,  Stefan Seitz
+ *
+ */
+
 #pragma once
 
 
@@ -5,8 +11,10 @@
 #include "flow_endpoints.hpp"
 #include "flow_processor.hpp"
 
-#include <list>
+#include "common/lua_common.hpp"
 
+#include <list>
+#include <map>
 
 enum class flow_dir
 {
@@ -66,12 +74,10 @@ private:
 class flow_program
 {
 public:
-    using flow_cfg_iterator = std::list<flow_config>::iterator;
-    using flow_cfg_const_iterator = std::list<flow_config>::const_iterator;
+    using flow_cfg_iterator       = std::list< flow_config >::iterator;
+    using flow_cfg_const_iterator = std::list< flow_config >::const_iterator;
 
-    explicit flow_program(std::string program_name) : program_name(std::move(program_name)) {
-
-    }
+    explicit flow_program(std::string program_name) : program_name(std::move(program_name)) {}
 
     const std::string& get_name() const noexcept {
         return program_name;
@@ -101,3 +107,22 @@ private:
     std::list< flow_config > flow_configs;
 };
 
+class init_script_handler : noncopyable
+{
+public:
+    init_script_handler();
+
+    void load_init_script(const std::string& filename);
+
+    flow_program build_program(const std::vector< std::shared_ptr< flow_endpoint_base > >& available_endpoints);
+
+private:
+
+    void cb_set_config_var(const std::string& name, const std::string& value);
+
+    std::string cb_get_config_var(const std::string& name) const;
+
+    lua_engine lua;
+
+
+};

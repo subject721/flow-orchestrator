@@ -24,68 +24,28 @@ cfg.set('version', meson.project_version())
 
 cfg.set10('DEBUG', get_option('debug'))
 
+opt_buildtype = get_option('buildtype')
 
-# TODO: remove the hardcoded flags
-cxx_flags += '-DALLOW_EXPERIMENTAL_API=1'
-cxx_flags += '-DSOL_LUAJIT=1'
-cxx_flags += '-mno-avx'
-cxx_flags += '-mno-avx2'
-cxx_flags += '-march=westmere'
-cxx_flags += '-mmmx'
-cxx_flags += '-msse'
-cxx_flags += '-msse2'
-cxx_flags += '-msse3'
-cxx_flags += '-mssse3'
-cxx_flags += '-msse4'
-cxx_flags += '-msse4.1'
-cxx_flags += '-msse4.2'
-cxx_flags += '-maes'
-cxx_flags += '-mcx16'
+opt_use_conan_deps = get_option('use-conan-deps')
 
+opt_reduced_simd_level = get_option('reduced-simd-level')
+opt_enable_avx512 = get_option('enable-avx512')
 
-cxx_flags += '-fno-rtti'
+if opt_reduced_simd_level and opt_enable_avx512
+    error('Cannot enable AVX512 while using a reduced SIMD feature set at the same time!')
+endif
 
 cxx_flags += '-Wno-unused-parameter'
+
+subdir('buildcfg')
 
 
 ############################
 # Dependency setup
 ############################
 
+subdir('dependencies')
 
-dep_null = dependency('', required: false)
-
-
-boost_modules = [
-  'system',
-  'program_options',
-  'date_time'
-]
-
-dep_threads = dependency('threads')
-
-dep_boost = dependency('boost', modules : boost_modules)
-
-dep_fmt = dependency('fmt')
-
-dep_dpdk = dependency('libdpdk-libs')
-
-dep_asmjit = dep_null # dependency('asmjit', method: 'cmake')
-
-dep_luajit = dependency('luajit')
-
-dep_sol = dependency('sol2', method: 'cmake')
-
-
-dep_all = []
-
-dep_all += dep_threads
-dep_all += dep_boost
-dep_all += dep_dpdk
-dep_all += dep_asmjit
-dep_all += dep_luajit
-dep_all += dep_sol
-dep_all += dep_fmt
 
 ############################
 # Include subdirs 
@@ -108,17 +68,17 @@ subdir('src')
 flow_orchestrator_lib = library(
     'flow-orchestrator',
     flow_orchestrator_sources,
-    dependencies: dep_all,
+    dependencies: dep_foreign,
     cpp_args: cxx_flags,
     include_directories: include_dirs
 )
 
-dep_flow_orchestrator_lib = declare_dependency(dependencies: dep_all, include_directories: include_dirs, link_with: flow_orchestrator_lib)
+dep_flow_orchestrator_lib = declare_dependency(dependencies: dep_foreign, include_directories: include_dirs, link_with: flow_orchestrator_lib)
 
 flow_orchestrator = executable(
   'flow-orchestrator',
   main_source,
-  dependencies: [dep_all, dep_flow_orchestrator_lib],
+  dependencies: [dep_foreign, dep_flow_orchestrator_lib],
   cpp_args: cxx_flags,
   include_directories: include_dirs)
 
@@ -135,10 +95,19 @@ foreach test_name, test_sources : test_sources
     test_executables += executable(
       test_name,
       test_sources,
-      dependencies: [dep_all, dep_flow_orchestrator_lib],
+      dependencies: [dep_foreign, dep_flow_orchestrator_lib],
       cpp_args: cxx_flags,
       include_directories: include_dirs)
 endforeach
+
+
+summary({'Buildtype' : opt_buildtype,
+        'Version' : cfg.get('version'),
+        'Using Conan deps' : opt_use_conan_deps,
+        'Using reduced SIMD level' : opt_reduced_simd_level,
+        'Using AVX512' : opt_enable_avx512,
+        'SIMD flags' : simd_flags
+        }, section: 'Configuration')
 
 
 

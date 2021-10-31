@@ -19,6 +19,7 @@ lua_attachment_base::~lua_attachment_base() {
 lua_engine::lua_engine() {
     state.set_exception_handler(lua_engine::_binding_exception_handler);
 
+
     state.set("DEBUG", (int) LOG_DEBUG);
     state.set("INFO", (int) LOG_INFO);
     state.set("WARN", (int) LOG_WARN);
@@ -56,6 +57,7 @@ void lua_engine::dump_state() {
         }
     }
 }
+
 
 void lua_engine::_binding_log(int level, std::string msg) {
     log((log_level) level, fmt::format("<lua> {}", msg));

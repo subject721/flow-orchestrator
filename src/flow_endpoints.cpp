@@ -7,15 +7,12 @@
 #include <flow_endpoints.hpp>
 
 
-eth_dpdk_endpoint::eth_dpdk_endpoint(std::string name, std::shared_ptr< dpdk_mempool > mempool, std::unique_ptr< dpdk_ethdev > eth_dev) :
-    flow_endpoint_base(std::move(name), std::move(mempool)),
-    eth_dev(std::move(eth_dev)) {
+eth_dpdk_endpoint::eth_dpdk_endpoint(std::string                     name,
+                                     std::shared_ptr< dpdk_mempool > mempool,
+                                     std::unique_ptr< dpdk_ethdev >  eth_dev) :
+    flow_endpoint_base(std::move(name), std::move(mempool)), eth_dev(std::move(eth_dev)) {}
 
-}
-
-eth_dpdk_endpoint::~eth_dpdk_endpoint() {
-
-}
+eth_dpdk_endpoint::~eth_dpdk_endpoint() {}
 
 uint16_t eth_dpdk_endpoint::rx_burst(mbuf_vec_base& mbuf_vec) {
     uint16_t rx_count = get_ethdev()->rx_burst(0, mbuf_vec.data(), mbuf_vec.num_free_tail());

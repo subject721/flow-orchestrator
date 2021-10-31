@@ -17,7 +17,6 @@
 class packet_proc_flow : noncopyable
 {
 public:
-
     static constexpr const size_t INACTIVE_IDX_MASK = 0x80000000;
 
     void add_proc(std::unique_ptr< flow_processor > proc) {
@@ -32,16 +31,16 @@ public:
 
     uint16_t process(mbuf_vec_base& mbuf_vec) {
         for ( size_t idx : proc_order ) {
-            if(!mbuf_vec.size()) {
+            if ( !mbuf_vec.size() ) {
                 break;
             }
 
-            if(idx & INACTIVE_IDX_MASK)
+            if ( idx & INACTIVE_IDX_MASK )
                 continue;
 
             uint16_t ret = procs[idx]->process(mbuf_vec);
 
-            if(ret < mbuf_vec.size()) {
+            if ( ret < mbuf_vec.size() ) {
                 mbuf_vec.free_back(mbuf_vec.size() - ret);
             }
         }
@@ -57,12 +56,12 @@ public:
         proc_order[idx] &= ~INACTIVE_IDX_MASK;
     }
 
-    std::vector<std::string> get_chain_names() const {
-        std::vector<std::string> names;
+    std::vector< std::string > get_chain_names() const {
+        std::vector< std::string > names;
 
         names.reserve(proc_order.size());
 
-        for(size_t idx : proc_order) {
+        for ( size_t idx : proc_order ) {
             names.push_back(procs[idx]->get_name());
         }
 
@@ -72,7 +71,7 @@ public:
 private:
     std::vector< std::unique_ptr< flow_processor > > procs;
 
-    std::vector< size_t >                            proc_order;
+    std::vector< size_t > proc_order;
 };
 
 class flow_distributor
@@ -88,11 +87,11 @@ public:
 
 
 private:
-    size_t max_ports;
-    size_t num_queues;
+    size_t   max_ports;
+    size_t   num_queues;
     uint32_t ring_size;
 
-    std::vector<mbuf_ring> rings;
+    std::vector< mbuf_ring > rings;
 };
 
 
@@ -106,7 +105,6 @@ public:
     ~flow_manager();
 
 
-
     void start();
 
     void stop();
@@ -118,6 +116,5 @@ private:
 
     struct private_data;
 
-    std::unique_ptr<private_data> pdata;
-
+    std::unique_ptr< private_data > pdata;
 };

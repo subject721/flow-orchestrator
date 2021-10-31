@@ -1,3 +1,9 @@
+/*
+ * SPDX-License-Identifier: BSD-3-Clause
+ * Copyright (c) 2021,  Stefan Seitz
+ *
+ */
+
 #pragma once
 
 
@@ -11,16 +17,17 @@
 
 
 template < class TExecutionPolicy, class TFlowManager >
-class flow_executor : public flow_executor_base<TFlowManager>
+class flow_executor : public flow_executor_base< TFlowManager >
 {
 public:
     using execution_policy_type = TExecutionPolicy;
 
-    using flow_manager_type = typename flow_executor_base<TFlowManager>::flow_manager_type;
-    using worker_callback_type = typename flow_executor_base<TFlowManager>::worker_callback_type;
+    using flow_manager_type    = typename flow_executor_base< TFlowManager >::flow_manager_type;
+    using worker_callback_type = typename flow_executor_base< TFlowManager >::worker_callback_type;
 
 
-    flow_executor(flow_manager_type& flow_manager) : flow_executor_base<TFlowManager>(flow_manager) {}
+    explicit flow_executor(flow_manager_type& flow_manager) :
+        flow_executor_base< TFlowManager >(flow_manager), run_flag(false) {}
 
     ~flow_executor() override {
         stop();
@@ -80,7 +87,7 @@ public:
     }
 
     void start(worker_callback_type endpoint_callback, worker_callback_type distributor_callback) override {
-        if(run_flag.load()) {
+        if ( run_flag.load() ) {
             return;
         }
 
@@ -119,7 +126,7 @@ public:
     }
 
     void stop() override {
-        if(run_flag.load()) {
+        if ( run_flag.load() ) {
             run_flag.store(false);
 
             for ( auto& l : lcore_threads ) {
@@ -200,11 +207,12 @@ struct reduced_core_policy
     }
 };
 
-template <class TFlowManager>
-std::unique_ptr<flow_executor_base<TFlowManager>> create_executor(TFlowManager& flow_manager, ExecutionPolicyType policyType) {
-    switch(policyType) {
+template < class TFlowManager >
+std::unique_ptr< flow_executor_base< TFlowManager > > create_executor(TFlowManager&       flow_manager,
+                                                                      ExecutionPolicyType policyType) {
+    switch ( policyType ) {
         case ExecutionPolicyType::REDUCED_CORE_COUNT_POLICY: {
-            return std::make_unique<flow_executor<reduced_core_policy, TFlowManager>>(flow_manager);
+            return std::make_unique< flow_executor< reduced_core_policy, TFlowManager > >(flow_manager);
         }
         default:
             throw std::invalid_argument("unknown policy type");

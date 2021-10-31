@@ -70,8 +70,8 @@ dpdk_ethdev::dpdk_ethdev(uint64_t                        port_id,
     rte_eth_txconf tx_conf = local_dev_info.default_txconf;
     rte_eth_rxconf rx_conf = local_dev_info.default_rxconf;
 
-    tx_conf.offloads       = local_dev_conf.txmode.offloads;
-    rx_conf.offloads       = local_dev_conf.rxmode.offloads;
+    tx_conf.offloads = local_dev_conf.txmode.offloads;
+    rx_conf.offloads = local_dev_conf.rxmode.offloads;
 
     for ( uint16_t queue_index = 0; queue_index < num_tx_queues; ++queue_index ) {
         status =
@@ -164,7 +164,7 @@ uint16_t dpdk_ethdev::tx_flush(uint16_t queue_id) {
 rte_ether_addr dpdk_ethdev::get_mac_addr() const {
     rte_ether_addr mac_addr {.addr_bytes = {0}};
 
-    int            status = rte_eth_macaddr_get(port_id, &mac_addr);
+    int status = rte_eth_macaddr_get(port_id, &mac_addr);
 
     if ( status < 0 ) {
         throw std::runtime_error(
@@ -194,7 +194,7 @@ dpdk_ethdev::eth_device_info dpdk_ethdev::get_device_info(uint64_t port_id) {
 
 
 std::vector< uint64_t > get_available_ethdev_ids() {
-    uint64_t                owner_id = RTE_ETH_DEV_NO_OWNER;
+    uint64_t owner_id = RTE_ETH_DEV_NO_OWNER;
 
     std::vector< uint64_t > port_ids;
 
