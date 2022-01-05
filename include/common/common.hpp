@@ -10,6 +10,7 @@
 #include <vector>
 #include <cstdint>
 #include <cctype>
+#include <cstdio>
 
 #include <mutex>
 #include <memory>
@@ -246,4 +247,19 @@ public:
     virtual fdtype get_fd() const = 0;
 
     virtual bool wait(uint32_t fd_op_flags, uint32_t timeout_ms) = 0;
+};
+
+class log_proxy : noncopyable
+{
+public:
+
+    static FILE* get_cfile();
+
+private:
+    static ssize_t read_proxy(void* p, char* buf, size_t size);
+    static ssize_t write_proxy(void* p, const char* buf, size_t size);
+    static int seek_proxy(void* p, off64_t* offset, int whence);
+    static int close_proxy(void* p);
+
+    std::vector<char> linebuffer;
 };

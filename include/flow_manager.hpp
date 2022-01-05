@@ -35,7 +35,7 @@ public:
                 break;
             }
 
-            if ( idx & INACTIVE_IDX_MASK )
+            if ( unlikely( idx & INACTIVE_IDX_MASK ))
                 continue;
 
             uint16_t ret = procs[idx]->process(mbuf_vec);
@@ -50,10 +50,14 @@ public:
 
     void disable_stage(size_t idx) {
         proc_order[idx] |= INACTIVE_IDX_MASK;
+
+        rte_wmb();
     }
 
     void enable_stage(size_t idx) {
         proc_order[idx] &= ~INACTIVE_IDX_MASK;
+
+        rte_wmb();
     }
 
     std::vector< std::string > get_chain_names() const {
@@ -104,6 +108,7 @@ public:
 
     ~flow_manager();
 
+    void load(flow_program prog);
 
     void start();
 

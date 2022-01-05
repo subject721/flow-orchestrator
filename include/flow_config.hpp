@@ -22,6 +22,13 @@ enum class flow_dir
     TX
 };
 
+struct dev_info
+{
+    std::optional< std::string > dev_type_str;
+    std::optional< std::string > dev_id_str;
+    std::optional< std::string > dev_options_str;
+};
+
 template < class T >
 struct is_endpoint : std::bool_constant< std::is_base_of_v< flow_endpoint_base, T > >
 {
@@ -122,7 +129,6 @@ private:
 
     std::string cb_get_config_var(const std::string& name) const;
 
+
     lua_engine lua;
-
-
 };

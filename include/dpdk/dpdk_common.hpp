@@ -383,4 +383,5 @@ private:
     std::unique_ptr< rte_ring, rte_ring_deleter > ring;
 };
 
+
 void dpdk_eal_init(std::vector< std::string > flags);

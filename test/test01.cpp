@@ -101,6 +101,9 @@ int main(int argc, char** argv) {
 
             num_executions = num_executions + 1
 
+            log(INFO, "f : 1")
+            bla()
+
             return result
         end
 

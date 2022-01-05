@@ -99,7 +99,9 @@ private:
 
     std::shared_ptr< dpdk_mempool > mempool;
 
-    flow_manager flow_manager;
+    flow_manager flow_mgr;
+
+    std::string init_script_name;
 };
 
 
@@ -124,15 +126,23 @@ int main(int argc, char** argv) {
     std::signal(SIGTERM, signal_handler);
     std::signal(SIGUSR1, signal_handler);
 
+    int rc;
+
     try {
+        rte_openlog_stream(log_proxy::get_cfile());
+
         flow_orchestrator_app app(argc, argv);
 
-        return app.run();
+        rc = app.run();
     } catch ( const std::exception& e ) {
-        std::cerr << e.what() << std::endl;
+        log(LOG_ERROR, "Fatal error! Aborting... Error Message : \"{}\"", e.what());
 
-        return 0;
+        rc = -1;
     }
+
+    rte_eal_cleanup();
+
+    return rc;
 }
 
 flow_orchestrator_app::flow_orchestrator_app(int argc, char** argv) :
@@ -151,7 +161,9 @@ int flow_orchestrator_app::run() {
 
     bool run_state = true;
 
-    flow_manager.start();
+    log(LOG_INFO, "Starting flows");
+
+    flow_mgr.start();
 
     while ( run_state ) {
         int signal_num;
@@ -162,13 +174,23 @@ int flow_orchestrator_app::run() {
             }
         }
 
+
+
         // Do some other important stuff;
     }
 
-    flow_manager.stop();
+    log(LOG_INFO, "Stopping flows");
+
+    flow_mgr.stop();
+
+    rte_eal_mp_wait_lcore();
 
     return 0;
 }
+
+static const std::string DPDK_OPTIONS_FLAG = "dpdk-options";
+static const std::string DEVICES_FLAG = "devices";
+static const std::string INIT_SCRIPT_FLAG = "init-script";
 
 void flow_orchestrator_app::parse_args(int argc, char** argv) {
 
@@ -179,13 +201,13 @@ void flow_orchestrator_app::parse_args(int argc, char** argv) {
     po::options_description desc("Command line options");
 
     desc.add_options()("help", "print help")(
-        "dpdk-options", po::value< std::vector< std::string > >()->multitoken(), "dpdk options")(
-        "devices", po::value< std::vector< std::string > >()->multitoken(), "Devices to use")(
-        "init-script", po::value< std::string >(), "Init script to load");
+        DPDK_OPTIONS_FLAG.c_str(), po::value< std::vector< std::string > >()->multitoken(), "dpdk options")(
+        DEVICES_FLAG.c_str(), po::value< std::vector< std::string > >()->multitoken(), "Devices to use")(
+        INIT_SCRIPT_FLAG.c_str(), po::value< std::string >(), "Init script to load");
 
     po::positional_options_description p;
 
-    p.add("dpdk-options", -1);
+    p.add(DPDK_OPTIONS_FLAG.c_str(), -1);
 
     po::variables_map vm;
 
@@ -194,29 +216,34 @@ void flow_orchestrator_app::parse_args(int argc, char** argv) {
     po::notify(vm);
 
     if ( vm.count("help") ) {
-        std::cout << "TODO: Print help!" << std::endl;
+
+        desc.print(std::cout);
 
         should_exit = true;
 
         return;
     }
 
+    if(vm.count(INIT_SCRIPT_FLAG)) {
+        init_script_name = vm[INIT_SCRIPT_FLAG].as<std::string>();
+    }
+
     // Always add program name first
     dpdk_options.push_back(std::string(argv[0]));
 
-    if ( vm.count("dpdk-options") ) {
-        auto positional_args = vm["dpdk-options"].as< std::vector< std::string > >();
+    if ( vm.count(DPDK_OPTIONS_FLAG) ) {
+        auto positional_args = vm[DPDK_OPTIONS_FLAG].as< std::vector< std::string > >();
 
         for ( const std::string& arg : positional_args ) {
             dpdk_options.push_back(arg);
         }
     }
 
-    if ( !vm.count("devices") ) {
+    if ( !vm.count(DEVICES_FLAG) ) {
         throw std::runtime_error("at least one device required");
     }
 
-    device_names = vm["devices"].as< std::vector< std::string > >();
+    device_names = vm[DEVICES_FLAG].as< std::vector< std::string > >();
 
     pool_size     = (1 << 14);
     cache_size    = 128;
@@ -224,9 +251,52 @@ void flow_orchestrator_app::parse_args(int argc, char** argv) {
     private_size  = align_to_next_multiple(sizeof(packet_private_info), (size_t) RTE_MBUF_PRIV_ALIGN);
 }
 
+
 void flow_orchestrator_app::setup() {
+    log(LOG_INFO, "Settings up devices and flows");
+
     dpdk_options.push_back("--no-shconf");
     dpdk_options.push_back("--in-memory");
+
+    std::vector<dev_info> dev_info_list;
+
+    for ( const auto& interface_identifier : device_names ) {
+        dev_info info;
+
+        for ( auto token_it = boost::make_split_iterator(interface_identifier, first_finder("&", boost::is_iequal()));
+              token_it != boost::split_iterator< std::string::const_iterator >();
+              ++token_it ) {
+
+            if ( !info.dev_type_str.has_value() ) {
+                info.dev_type_str = boost::copy_range< std::string >(*token_it);
+            } else if ( !info.dev_id_str.has_value() ) {
+                info.dev_id_str = boost::copy_range< std::string >(*token_it);
+            } else if ( !info.dev_options_str.has_value() ) {
+                info.dev_options_str = boost::copy_range< std::string >(*token_it);
+            } else {
+                throw std::invalid_argument(
+                    fmt::format("device specification {} has invalid format", interface_identifier));
+            }
+        }
+
+        if ( !info.dev_type_str.has_value() ) {
+            throw std::invalid_argument(
+                fmt::format("device specification {} has no device type specifier", interface_identifier));
+        }
+        if ( !info.dev_id_str.has_value() ) {
+            throw std::invalid_argument(
+                fmt::format("device specification {} has no device id specifier", interface_identifier));
+        }
+
+        dev_info_list.push_back(std::move(info));
+    }
+
+    for(const auto& info : dev_info_list) {
+        if(info.dev_type_str.value() == "eth") {
+            dpdk_options.push_back("-a");
+            dpdk_options.push_back(info.dev_id_str.value());
+        }
+    }
 
     dpdk_eal_init(dpdk_options);
 
@@ -235,60 +305,21 @@ void flow_orchestrator_app::setup() {
     // Create endpoint instances
     std::vector< std::shared_ptr< flow_endpoint_base > > endpoints;
 
-    for ( const auto& interface_identifier : device_names ) {
-        std::optional< std::string > dev_type_str;
-        std::optional< std::string > dev_id_str;
-        std::optional< std::string > dev_options_str;
-
-        for ( auto token_it = boost::make_split_iterator(interface_identifier, first_finder("%", boost::is_iequal()));
-              token_it != boost::split_iterator< std::string::const_iterator >();
-              ++token_it ) {
-
-            if ( !dev_type_str.has_value() ) {
-                dev_type_str = boost::copy_range< std::string >(*token_it);
-            } else if ( !dev_id_str.has_value() ) {
-                dev_id_str = boost::copy_range< std::string >(*token_it);
-            } else if ( !dev_options_str.has_value() ) {
-                dev_options_str = boost::copy_range< std::string >(*token_it);
-            } else {
-                throw std::invalid_argument(
-                    fmt::format("device specification {} has invalid format", interface_identifier));
-            }
-        }
-
-        if ( !dev_type_str.has_value() ) {
-            throw std::invalid_argument(
-                fmt::format("device specification {} has no device type specifier", interface_identifier));
-        }
-        if ( !dev_id_str.has_value() ) {
-            throw std::invalid_argument(
-                fmt::format("device specification {} has no device id specifier", interface_identifier));
-        }
-
-        endpoints.push_back(create_endpoint(dev_type_str.value(), dev_id_str.value(), dev_options_str.value_or("")));
+    for(const auto& info : dev_info_list) {
+        endpoints.push_back(create_endpoint(info.dev_type_str.value(), info.dev_id_str.value(), info.dev_options_str.value_or("")));
     }
 
-    //    std::string dev_name = device_names.front();
-    //
-    //    uint64_t dev_port_id = 0;
-    //
-    //    const auto all_devices = get_available_ethdev_ids();
-    //
-    //    auto dev_it = std::find_if(all_devices.begin(), all_devices.end(), [&dev_name](uint64_t port_id){
-    //        return (dpdk_ethdev::get_device_info(port_id).get_name() == dev_name);
-    //    });
-    //
-    //    if(dev_it != all_devices.end()) {
-    //        dev_port_id = *dev_it;
-    //    } else {
-    //        throw std::runtime_error((boost::format("device %1% not available") % dev_name).str());
-    //    }
-    //
-    //    test_dev = std::make_shared<dpdk_ethdev>(dev_port_id, 0, 1024, 1024, 1, 1, mempool);
-    //
-    //    test_dev->start();
+    if(!init_script_name.empty()) {
+        init_script_handler init_handler;
 
-    std::cout << "setup done" << std::endl;
+        init_handler.load_init_script(init_script_name);
+
+        auto flow_program = init_handler.build_program(endpoints);
+
+        flow_mgr.load(std::move(flow_program));
+    }
+
+    log(LOG_INFO, "Setup done");
 }
 
 std::shared_ptr< flow_endpoint_base > flow_orchestrator_app::create_endpoint(const std::string& type,
@@ -309,6 +340,8 @@ std::shared_ptr< flow_endpoint_base > flow_orchestrator_app::create_endpoint(con
         } else {
             throw std::runtime_error(fmt::format("ethernet device {} not available", id));
         }
+
+        log(LOG_INFO, "Creating device instance {} of type {} as port {}", id, type, dev_port_id);
 
         auto eth_dev = std::make_unique< dpdk_ethdev >(dev_port_id, 0, 1024, 1024, 1, 1, mempool);
 

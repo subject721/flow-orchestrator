@@ -39,6 +39,7 @@ cxx_flags += '-Wno-unused-parameter'
 
 subdir('buildcfg')
 
+tool_xxd = find_program(['xxd'], required: true)
 
 ############################
 # Dependency setup
@@ -64,6 +65,8 @@ subdir('src')
 ############################
 # Define Build Targets
 ############################
+
+
 
 flow_orchestrator_lib = library(
     'flow-orchestrator',
@@ -91,14 +94,23 @@ test_executables = []
 
 test_includes = [include_dirs, include_directories('test')]
 
+test_file_names = []
+test_file_targets = []
+
+subdir('test')
+
 foreach test_name, test_sources : test_sources
+
+    test_sources_full = test_sources
+
     test_executables += executable(
       test_name,
-      test_sources,
+      test_sources_full,
       dependencies: [dep_foreign, dep_flow_orchestrator_lib],
       cpp_args: cxx_flags,
       include_directories: include_dirs)
 endforeach
+
 
 
 summary({'Buildtype' : opt_buildtype,

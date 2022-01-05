@@ -14,3 +14,15 @@ flow_orchestrator_sources += files([
 
 main_source = files('main.cpp')
 
+internal_lua_utils_src = files(['lua_utils.lua'])
+
+internal_lua_utils_hdr = 'lua_utils.h'
+
+internal_lua_utils_tgt = custom_target(
+    'internal_lua_utils',
+    output : internal_lua_utils_hdr,
+    input : internal_lua_utils_src,
+    command : [tool_xxd, '-i', '-C', '@INPUT@', '@OUTPUT@'],
+)
+
+flow_orchestrator_sources += internal_lua_utils_tgt
