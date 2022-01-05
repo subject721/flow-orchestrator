@@ -40,9 +40,13 @@ private:
 class flow_endpoint_base : public flow_node_base
 {
 public:
-    flow_endpoint_base(std::string name, std::shared_ptr< dpdk_mempool > mempool);
+    flow_endpoint_base(std::string name, int port_num, std::shared_ptr< dpdk_mempool > mempool);
 
     ~flow_endpoint_base() override = default;
+
+    int get_port_num() const noexcept {
+        return port_num;
+    }
 
     // Yes I'm aware that virtual functions have a performance impact
     // But for now I don't care
@@ -51,6 +55,7 @@ public:
     virtual uint16_t tx_burst(mbuf_vec_base& mbuf_vec) = 0;
 
 private:
+    int port_num;
 };
 
 class flow_database : noncopyable

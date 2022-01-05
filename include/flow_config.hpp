@@ -129,6 +129,7 @@ private:
 
     std::string cb_get_config_var(const std::string& name) const;
 
+    std::string program_name;
 
     lua_engine lua;
 };

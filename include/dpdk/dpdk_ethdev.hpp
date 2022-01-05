@@ -49,6 +49,8 @@ public:
 
     ~dpdk_ethdev();
 
+    uint64_t get_port_id() const noexcept;
+
     void start();
 
     void stop();

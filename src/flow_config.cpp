@@ -22,14 +22,6 @@ private:
     std::string id;
 };
 
-class flow_init_endpoint : public flow_init_node
-{
-public:
-    flow_init_endpoint(const std::string& id) : flow_init_node(id) {}
-
-private:
-};
-
 class flow_init_proc : public flow_init_node
 {
 public:
@@ -37,7 +29,52 @@ public:
 
     flow_init_proc(const std::string& name) : flow_init_node(name) {}
 
+    flow_init_proc& param(const std::string& key, const std::string& value) {
+
+        params[key] = value;
+
+        return *this;
+    }
+
+    std::shared_ptr< flow_init_proc > next(std::shared_ptr< flow_init_proc > p) {
+        next_proc = std::move(p);
+
+        return next_proc;
+    }
+
+    std::shared_ptr< flow_init_proc > get_next_proc() const {
+        return next_proc;
+    }
+
 private:
+    std::map< std::string, std::string > params;
+
+    std::shared_ptr< flow_init_proc > next_proc;
+};
+
+class flow_init_endpoint : public flow_init_node
+{
+public:
+    flow_init_endpoint(const std::string& id, int port_num) : flow_init_node(id), port_num(port_num) {}
+
+    std::shared_ptr< flow_init_proc > next(std::shared_ptr< flow_init_proc > p) {
+        next_proc = std::move(p);
+
+        return next_proc;
+    }
+
+    std::shared_ptr< flow_init_proc > first_proc() const {
+        return next_proc;
+    }
+
+    int get_port_num() const noexcept {
+        return port_num;
+    }
+
+private:
+    std::shared_ptr< flow_init_proc > next_proc;
+
+    int port_num;
 };
 
 class flow_creation_lua_extension : public lua_engine_extension< flow_creation_lua_extension >
@@ -48,6 +85,7 @@ public:
 
     ~flow_creation_lua_extension() override {
         ut_endpoint.unregister();
+        ut_proc.unregister();
     }
 
 private:
@@ -55,23 +93,29 @@ private:
 
         ut_endpoint = new_usertype< flow_init_endpoint >(
             "endpoint", sol::no_constructor, sol::base_classes, sol::bases< flow_init_node >());
+
         ut_endpoint["name"]                        = &flow_init_node::name;
         ut_endpoint[sol::meta_function::to_string] = &flow_init_node::name;
+        ut_endpoint["next"]                        = &flow_init_endpoint::next;
+        ut_endpoint["port_num"]                    = &flow_init_endpoint::get_port_num;
 
         ut_proc = new_usertype< flow_init_proc >(
             "processor", sol::no_constructor, sol::base_classes, sol::bases< flow_init_node >());
+
         ut_proc["name"]                        = &flow_init_node::name;
         ut_proc[sol::meta_function::to_string] = &flow_init_node::name;
+        ut_proc["next"]                        = &flow_init_proc::next;
 
-        set_function<std::optional<flow_init_proc>>("proc", std::function<std::optional<flow_init_proc>(const std::string&)>([](const std::string& name) -> std::optional<flow_init_proc> {
-                                                            return flow_init_proc(name);
-        }));
+        set_function< std::shared_ptr< flow_init_proc > >(
+            "proc", std::function< std::shared_ptr< flow_init_proc >(const std::string&) >([](const std::string& name) {
+                return std::make_shared< flow_init_proc >(name);
+            }));
     }
 
     init_script_handler& init_handler;
 
     sol::usertype< flow_init_endpoint > ut_endpoint;
-    sol::usertype< flow_init_proc > ut_proc;
+    sol::usertype< flow_init_proc >     ut_proc;
 };
 
 init_script_handler::init_script_handler() {
@@ -93,6 +137,8 @@ void init_script_handler::load_init_script(const std::string& filename) {
     lua.get().collect_garbage();
 
     lua.execute(script_content, filename);
+
+    program_name = lua.get<std::string>("program_name").value_or(filename);
 }
 
 flow_program init_script_handler::build_program(
@@ -103,21 +149,47 @@ flow_program init_script_handler::build_program(
 
         lua.load_extension(flow_ext);
 
-        std::vector< flow_init_endpoint > endpoint_list;
+        std::vector< std::shared_ptr< flow_init_endpoint > > endpoint_list;
 
         std::transform(
             available_endpoints.begin(), available_endpoints.end(), std::back_inserter(endpoint_list), [](auto& ep) {
-                return flow_init_endpoint(ep->get_name());
+                return std::make_shared< flow_init_endpoint >(ep->get_name(), ep->get_port_num());
             });
 
         lua.call< void >("init", endpoint_list);
+
+        flow_program prog(program_name);
+
+        for ( auto& ep : endpoint_list ) {
+            log(LOG_INFO, "Chain for endpoint {}", ep->name());
+
+            std::shared_ptr< flow_init_proc > current = ep->first_proc();
+
+            std::string s;
+
+            auto& flow = prog.add_flow(fmt::format("flow-{}", ep->get_port_num()));
+
+
+
+            while ( current ) {
+                if ( s.empty() ) {
+                    s = fmt::format("{} -> {}", ep->name(), current->name());
+                } else {
+                    s = fmt::format("{} -> {}", s, current->name());
+                }
+
+                current = current->get_next_proc();
+            }
+
+            log(LOG_INFO, "{}", s);
+        }
+
+        return prog;
 
     } catch ( const std::exception& e ) {
 
         throw std::runtime_error(fmt::format("Could not call init function of init script : {}", e.what()));
     }
-
-    return flow_program("");
 }
 
 void init_script_handler::cb_set_config_var(const std::string& name, const std::string& value) {}

@@ -18,5 +18,5 @@ const std::string& flow_node_base::get_name() const noexcept {
 }
 
 
-flow_endpoint_base::flow_endpoint_base(std::string name, std::shared_ptr< dpdk_mempool > mempool) :
-    flow_node_base(std::move(name), std::move(mempool)) {}
+flow_endpoint_base::flow_endpoint_base(std::string name, int port_num, std::shared_ptr< dpdk_mempool > mempool) :
+    flow_node_base(std::move(name), std::move(mempool)), port_num(port_num) {}

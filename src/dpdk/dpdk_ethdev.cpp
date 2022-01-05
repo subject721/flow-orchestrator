@@ -123,6 +123,10 @@ dpdk_ethdev::~dpdk_ethdev() {
     }
 }
 
+uint64_t dpdk_ethdev::get_port_id() const noexcept {
+    return port_id;
+}
+
 void dpdk_ethdev::start() {
     if ( started ) {
         throw std::runtime_error("device already started");

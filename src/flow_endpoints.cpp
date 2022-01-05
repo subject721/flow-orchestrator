@@ -10,7 +10,7 @@
 eth_dpdk_endpoint::eth_dpdk_endpoint(std::string                     name,
                                      std::shared_ptr< dpdk_mempool > mempool,
                                      std::unique_ptr< dpdk_ethdev >  eth_dev) :
-    flow_endpoint_base(std::move(name), std::move(mempool)), eth_dev(std::move(eth_dev)) {}
+    flow_endpoint_base(std::move(name), (int)eth_dev->get_port_id(), std::move(mempool)), eth_dev(std::move(eth_dev)) {}
 
 eth_dpdk_endpoint::~eth_dpdk_endpoint() {}
 
