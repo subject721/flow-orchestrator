@@ -26,6 +26,10 @@ public:
 
     const std::string& get_name() const noexcept;
 
+    std::shared_ptr<dpdk_mempool> get_mempool_shared() const {
+        return mempool;
+    }
+
 protected:
     __inline dpdk_mempool* get_mempool() {
         return mempool.get();

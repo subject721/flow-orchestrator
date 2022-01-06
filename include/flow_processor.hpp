@@ -31,7 +31,7 @@ private:
 class ingress_packet_validator : public flow_processor
 {
 public:
-    ingress_packet_validator(std::string name, std::shared_ptr< dpdk_mempool > mempool);
+    ingress_packet_validator(std::string name, std::shared_ptr< dpdk_mempool > mempool, std::shared_ptr< flow_database > flow_database_ptr);
 
     ~ingress_packet_validator() override = default;
 
@@ -61,3 +61,8 @@ public:
 private:
     std::shared_ptr< flow_database > flow_database_ptr;
 };
+
+std::unique_ptr< flow_processor > create_flow_processor(const std::string&                     class_name,
+                                                        const std::string&                     instance_name,
+                                                        const std::shared_ptr< dpdk_mempool >& mempool,
+                                                        const std::shared_ptr< flow_database >& flow_database);

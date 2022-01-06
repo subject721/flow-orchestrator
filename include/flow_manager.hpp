@@ -29,7 +29,7 @@ public:
         proc_order.push_back(old_size);
     }
 
-    uint16_t process(mbuf_vec_base& mbuf_vec) {
+    __inline uint16_t process(mbuf_vec_base& mbuf_vec) {
         for ( size_t idx : proc_order ) {
             if ( !mbuf_vec.size() ) {
                 break;

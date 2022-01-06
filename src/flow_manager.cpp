@@ -63,13 +63,16 @@ uint16_t flow_distributor::pull_packets(uint16_t port_id, uint16_t queue_id, mbu
 
 struct flow_manager::private_data
 {
-    explicit private_data(uint16_t num_queues) : distributor(MAX_NUM_FLOWS, num_queues, 128) {}
+    explicit private_data(uint16_t num_queues) : active(false), distributor(MAX_NUM_FLOWS, num_queues, 128) {}
 
+    std::atomic_bool active;
+
+    std::shared_ptr<flow_database> flow_database;
 
     flow_distributor distributor;
 
     std::array< std::optional< packet_proc_flow >, MAX_NUM_FLOWS >  proc_flows;
-    std::array< std::optional< eth_dpdk_endpoint >, MAX_NUM_FLOWS > proc_endpoints;
+    std::array< std::unique_ptr< flow_endpoint_base >, MAX_NUM_FLOWS > proc_endpoints;
 
     std::unique_ptr<flow_executor_base<flow_manager>> executor;
 };
@@ -79,23 +82,76 @@ flow_manager::flow_manager() {
 }
 
 flow_manager::~flow_manager() {
-
+    if(pdata) {
+        stop();
+        pdata.reset();
+    }
 }
 
 void flow_manager::load(flow_program prog) {
+    if(pdata && pdata->active.load()) {
+        throw std::runtime_error("cannot replace an active flow program");
+    }
 
+    pdata = std::make_unique<private_data>(1);
+
+    pdata->flow_database = prog.get_flow_database();
+
+    size_t index = 0;
+
+    // Sick iteration! Whoop
+    for(auto& flow : prog) {
+
+        pdata->proc_endpoints[index] = flow.detach_endpoint();
+
+        pdata->proc_flows[index].emplace();
+
+        for(auto& proc : flow_proc_iterator<flow_dir::RX>(flow)) {
+            pdata->proc_flows[index]->add_proc(std::move(proc));
+        }
+
+        for(auto& proc : flow_proc_iterator<flow_dir::TX>(flow)) {
+
+        }
+
+        ++index;
+    }
 }
 
 void flow_manager::start() {
+    if(!pdata) {
+        throw std::runtime_error("no program loaded");
+    }
 
+    if(pdata->active.load()) {
+        throw std::runtime_error("flow program already active");
+    }
+
+    pdata->executor = create_executor(*this, ExecutionPolicyType::REDUCED_CORE_COUNT_POLICY);
+
+    //pdata->executor->setup()
+
+    pdata->active.store(true);
+
+    //pdata->executor->start()
 }
 
 void flow_manager::stop() {
+    if(!pdata) {
+        throw std::runtime_error("no program loaded");
+    }
 
+    if(!pdata->active.load()) {
+        return;
+    }
+
+    //pdata->executor->stop();
+
+    pdata->active.store(false);
 }
 
 void flow_manager::endpoint_work_callback(const std::vector< size_t >& endpoint_ids) {
-
+    
 }
 
 void flow_manager::distributor_work_callback(const std::vector< size_t >& distributor_ids) {

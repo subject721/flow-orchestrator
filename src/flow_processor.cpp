@@ -6,9 +6,16 @@
 
 #include <flow_processor.hpp>
 
+#include <common/generic_factory.hpp>
+
 #include <rte_ip_frag.h>
 
-ingress_packet_validator::ingress_packet_validator(std::string name, std::shared_ptr< dpdk_mempool > mempool) :
+
+flow_processor::flow_processor(std::string name, std::shared_ptr< dpdk_mempool > mempool) :
+    flow_node_base(std::move(name), std::move(mempool)) {}
+
+
+ingress_packet_validator::ingress_packet_validator(std::string name, std::shared_ptr< dpdk_mempool > mempool, std::shared_ptr< flow_database > flow_database_ptr) :
     flow_processor(std::move(name), std::move(mempool)), rx_port_id(0) {}
 
 uint16_t ingress_packet_validator::process(mbuf_vec_base& mbuf_vec) {
@@ -110,4 +117,19 @@ uint16_t flow_classifier::process(mbuf_vec_base& mbuf_vec) {
     }
 
     return mbuf_vec.size();
+}
+
+static auto packet_proc_factory = create_factory< flow_processor >()
+                                      .append< ingress_packet_validator >("ingress_packet_validator")
+                                      .append< flow_classifier >("flow_classifier");
+
+std::unique_ptr< flow_processor > create_flow_processor(const std::string&                     class_name,
+                                                        const std::string&                     instance_name,
+                                                        const std::shared_ptr< dpdk_mempool >& mempool,
+                                                        const std::shared_ptr< flow_database >& flow_database) {
+    std::unique_ptr< flow_processor > instance;
+
+    packet_proc_factory.construct_and_assign(instance, class_name, instance_name, mempool, flow_database);
+
+    return instance;
 }

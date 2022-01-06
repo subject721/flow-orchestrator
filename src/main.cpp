@@ -82,7 +82,7 @@ private:
 
     void setup();
 
-    std::shared_ptr< flow_endpoint_base > create_endpoint(const std::string& type,
+    std::unique_ptr< flow_endpoint_base > create_endpoint(const std::string& type,
                                                           const std::string& id,
                                                           const std::string& options);
 
@@ -303,10 +303,10 @@ void flow_orchestrator_app::setup() {
     mempool = std::make_shared< dpdk_mempool >(pool_size, cache_size, dataroom_size, private_size);
 
     // Create endpoint instances
-    std::vector< std::shared_ptr< flow_endpoint_base > > endpoints;
+    std::vector< std::unique_ptr< flow_endpoint_base > > endpoints;
 
     for(const auto& info : dev_info_list) {
-        endpoints.push_back(create_endpoint(info.dev_type_str.value(), info.dev_id_str.value(), info.dev_options_str.value_or("")));
+        endpoints.emplace_back(create_endpoint(info.dev_type_str.value(), info.dev_id_str.value(), info.dev_options_str.value_or("")));
     }
 
     if(!init_script_name.empty()) {
@@ -314,7 +314,7 @@ void flow_orchestrator_app::setup() {
 
         init_handler.load_init_script(init_script_name);
 
-        auto flow_program = init_handler.build_program(endpoints);
+        auto flow_program = init_handler.build_program(std::move(endpoints));
 
         flow_mgr.load(std::move(flow_program));
     }
@@ -322,7 +322,7 @@ void flow_orchestrator_app::setup() {
     log(LOG_INFO, "Setup done");
 }
 
-std::shared_ptr< flow_endpoint_base > flow_orchestrator_app::create_endpoint(const std::string& type,
+std::unique_ptr< flow_endpoint_base > flow_orchestrator_app::create_endpoint(const std::string& type,
                                                                              const std::string& id,
                                                                              const std::string& options) {
 
@@ -346,7 +346,7 @@ std::shared_ptr< flow_endpoint_base > flow_orchestrator_app::create_endpoint(con
         auto eth_dev = std::make_unique< dpdk_ethdev >(dev_port_id, 0, 1024, 1024, 1, 1, mempool);
 
         // Endpoint nodes have their name set to the id of the actual interface (at least for now)
-        return std::make_shared< eth_dpdk_endpoint >(id, mempool, std::move(eth_dev));
+        return std::make_unique< eth_dpdk_endpoint >(id, mempool, std::move(eth_dev));
     } else {
         throw std::invalid_argument(fmt::format("Invalid device type: {}", type));
     }
