@@ -25,6 +25,10 @@ public:
 
     uint16_t tx_burst(mbuf_vec_base& mbuf_vec) override;
 
+    void start() override;
+
+    void stop() override;
+
     /**
      * @brief Detaches the ethernet device instance from this endpoint node.
      * You must take care to only call this function while no calls to rx_burst or tx_burst are made anymore.

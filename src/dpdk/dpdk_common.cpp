@@ -114,10 +114,10 @@ int dpdk_mempool::bulk_alloc(mbuf_vec_base& mbuf_vec, uint16_t count) {
         count = mbuf_vec.num_free_tail();
     }
 
-    int rc = bulk_alloc(mbuf_vec.data(), count);
+    int rc = bulk_alloc(mbuf_vec.begin(), count);
 
     if ( !rc ) {
-        mbuf_vec.set_size(count);
+        mbuf_vec.grow_tail(count);
     }
 
     return rc;
@@ -153,7 +153,7 @@ void mbuf_ring::init(size_t capacity) {
         throw std::runtime_error("ring is already initialized");
     }
 
-    auto* new_ring_ptr = rte_ring_create(name.c_str(), capacity, socket_id, RING_F_MP_HTS_ENQ | RING_F_SC_DEQ);
+    auto* new_ring_ptr = rte_ring_create(name.c_str(), capacity, socket_id, RING_F_MP_HTS_ENQ | RING_F_MC_HTS_DEQ);
 
     if ( !new_ring_ptr ) {
         int error_code = rte_errno;

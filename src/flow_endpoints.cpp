@@ -15,19 +15,27 @@ eth_dpdk_endpoint::eth_dpdk_endpoint(std::string                     name,
 eth_dpdk_endpoint::~eth_dpdk_endpoint() {}
 
 uint16_t eth_dpdk_endpoint::rx_burst(mbuf_vec_base& mbuf_vec) {
-    uint16_t rx_count = get_ethdev()->rx_burst(0, mbuf_vec.data(), mbuf_vec.num_free_tail());
+    uint16_t rx_count = get_ethdev()->rx_burst(0, mbuf_vec.end(), mbuf_vec.num_free_tail());
 
-    mbuf_vec.set_size(rx_count);
+    mbuf_vec.grow_tail(rx_count);
 
     return rx_count;
 }
 
 uint16_t eth_dpdk_endpoint::tx_burst(mbuf_vec_base& mbuf_vec) {
-    uint16_t tx_count = get_ethdev()->tx_burst(0, mbuf_vec.data(), mbuf_vec.size());
+    uint16_t tx_count = get_ethdev()->tx_burst(0, mbuf_vec.begin(), mbuf_vec.size());
 
     mbuf_vec.consume_front(tx_count);
 
     return tx_count;
+}
+
+void eth_dpdk_endpoint::start() {
+    eth_dev->start();
+}
+
+void eth_dpdk_endpoint::stop() {
+    eth_dev->stop();
 }
 
 std::unique_ptr< dpdk_ethdev > eth_dpdk_endpoint::detach_eth_dev() {

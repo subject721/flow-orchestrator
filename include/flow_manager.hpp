@@ -17,7 +17,16 @@
 class packet_proc_flow : noncopyable
 {
 public:
-    static constexpr const size_t INACTIVE_IDX_MASK = 0x80000000;
+    static constexpr uint32_t INACTIVE_IDX_MASK = 0x80000000U;
+    static constexpr uint32_t FLOW_TERMINATOR = 0x0fffffffU;
+
+    static constexpr uint32_t MAX_FLOW_LENGTH = 16;
+
+    packet_proc_flow() : current_flow_length(0) {
+        for(auto& e : proc_order) {
+            e = FLOW_TERMINATOR;
+        }
+    }
 
     void add_proc(std::unique_ptr< flow_processor > proc) {
         // Trivial for now
@@ -26,19 +35,28 @@ public:
 
         procs.push_back(std::move(proc));
 
-        proc_order.push_back(old_size);
+        proc_order[current_flow_length] = old_size;
+
+        ++current_flow_length;
     }
 
     __inline uint16_t process(mbuf_vec_base& mbuf_vec) {
-        for ( size_t idx : proc_order ) {
+        for ( size_t idx = 0; idx < MAX_FLOW_LENGTH; ++idx ) {
+
+            uint32_t proc_id = proc_order[idx];
+
+            if(proc_id == FLOW_TERMINATOR) {
+                break;
+            }
+
             if ( !mbuf_vec.size() ) {
                 break;
             }
 
-            if ( unlikely( idx & INACTIVE_IDX_MASK ))
+            if ( unlikely( proc_id & INACTIVE_IDX_MASK ))
                 continue;
 
-            uint16_t ret = procs[idx]->process(mbuf_vec);
+            uint16_t ret = procs[proc_id]->process(mbuf_vec);
 
             if ( ret < mbuf_vec.size() ) {
                 mbuf_vec.free_back(mbuf_vec.size() - ret);
@@ -63,10 +81,18 @@ public:
     std::vector< std::string > get_chain_names() const {
         std::vector< std::string > names;
 
-        names.reserve(proc_order.size());
+        names.reserve(current_flow_length);
 
-        for ( size_t idx : proc_order ) {
-            names.push_back(procs[idx]->get_name());
+        for ( size_t idx = 0; idx < current_flow_length; ++idx ) {
+            uint32_t proc_id = proc_order[idx];
+
+            if(proc_id == FLOW_TERMINATOR)
+                break;
+
+            if(proc_id & INACTIVE_IDX_MASK)
+                continue;
+
+            names.push_back(procs[proc_id]->get_name());
         }
 
         return names;
@@ -75,7 +101,9 @@ public:
 private:
     std::vector< std::unique_ptr< flow_processor > > procs;
 
-    std::vector< size_t > proc_order;
+    std::array< uint32_t, MAX_FLOW_LENGTH > proc_order;
+
+    size_t current_flow_length;
 };
 
 class flow_distributor
@@ -103,6 +131,8 @@ class flow_manager : noncopyable
 {
 public:
     static constexpr const size_t MAX_NUM_FLOWS = 8;
+
+    static constexpr const size_t BURST_SIZE = 32;
 
     flow_manager();
 

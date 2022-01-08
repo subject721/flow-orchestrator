@@ -127,8 +127,16 @@ public:
     mbuf_vec_base() : mbufs(nullptr), head_offset(0), tail_offset(0), max_num_mbufs(0) {}
 
 
-    __always_inline rte_mbuf** data() noexcept {
+    __always_inline rte_mbuf** base() noexcept {
+        return mbufs;
+    }
+
+    __always_inline rte_mbuf** begin() noexcept {
         return mbufs + head_offset;
+    }
+
+    __always_inline rte_mbuf** end() noexcept {
+        return mbufs + tail_offset;
     }
 
     __always_inline uint16_t size() const noexcept {
@@ -139,12 +147,12 @@ public:
         return max_num_mbufs - tail_offset;
     }
 
-    __inline uint16_t capacity() const noexcept {
+    __always_inline uint16_t capacity() const noexcept {
         return max_num_mbufs;
     }
 
     __inline void free() noexcept {
-        dpdk_mempool::bulk_free(data(), size());
+        dpdk_mempool::bulk_free(begin(), size());
 
         head_offset = 0;
         tail_offset = 0;
@@ -160,7 +168,8 @@ public:
         if ( unlikely(num > size()) ) {
             num = size();
         }
-        dpdk_mempool::bulk_free(data(), num);
+
+        dpdk_mempool::bulk_free(begin(), num);
 
         head_offset += num;
     }
@@ -192,7 +201,17 @@ public:
     }
 
     __inline void clear_packet(uint16_t idx) noexcept {
-        data()[idx] = nullptr;
+        begin()[idx] = nullptr;
+    }
+
+    __inline uint16_t grow_tail(uint16_t num) noexcept {
+        if(num > num_free_tail()) {
+            num = num_free_tail();
+        }
+
+        tail_offset += num;
+
+        return num;
     }
 
     __inline void set_size(uint16_t num) noexcept {
@@ -253,7 +272,7 @@ public:
     }
 
     using mbuf_vec_base::capacity;
-    using mbuf_vec_base::data;
+    using mbuf_vec_base::base;
     using mbuf_vec_base::free;
     using mbuf_vec_base::free_back;
     using mbuf_vec_base::free_front;
@@ -269,7 +288,7 @@ class mbuf_vec_view
 public:
     __inline constexpr mbuf_vec_view(rte_mbuf** mbufs, uint16_t num_mbufs) : mbufs(mbufs), num_mbufs(num_mbufs) {}
 
-    __inline mbuf_vec_view(mbuf_vec_base& mbuf_vec) : mbufs(mbuf_vec.data()), num_mbufs(mbuf_vec.size()) {}
+    __inline mbuf_vec_view(mbuf_vec_base& mbuf_vec) : mbufs(mbuf_vec.begin()), num_mbufs(mbuf_vec.size()) {}
 
     __always_inline rte_mbuf** data() noexcept {
         return mbufs;
@@ -350,7 +369,7 @@ public:
         }
 
         auto rc = (uint16_t) rte_ring_enqueue_bulk(
-            ring.get(), reinterpret_cast< void* const* >(mbuf_vec.data()), num, nullptr);
+            ring.get(), reinterpret_cast< void* const* >(mbuf_vec.begin()), num, nullptr);
 
         mbuf_vec.consume_front(num);
 
@@ -369,9 +388,9 @@ public:
         }
 
         auto rc =
-            (uint16_t) rte_ring_dequeue_bulk(ring.get(), reinterpret_cast< void** >(mbuf_vec.data()), num, nullptr);
+            (uint16_t) rte_ring_dequeue_bulk(ring.get(), reinterpret_cast< void** >(mbuf_vec.begin()), num, nullptr);
 
-        mbuf_vec.set_size(rc);
+        mbuf_vec.grow_tail(rc);
 
         return rc;
     }

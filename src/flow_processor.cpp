@@ -20,7 +20,7 @@ ingress_packet_validator::ingress_packet_validator(std::string name, std::shared
 
 uint16_t ingress_packet_validator::process(mbuf_vec_base& mbuf_vec) {
     for ( uint16_t packet_index = 0; packet_index < mbuf_vec.size(); ++packet_index ) {
-        rte_mbuf* current_packet = mbuf_vec.data()[packet_index];
+        rte_mbuf* current_packet = mbuf_vec.begin()[packet_index];
 
         if ( likely(current_packet != nullptr) ) {
             bool drop_packet = false;
@@ -30,6 +30,8 @@ uint16_t ingress_packet_validator::process(mbuf_vec_base& mbuf_vec) {
             auto* packet_info = reinterpret_cast< packet_private_info* >(rte_mbuf_to_priv(current_packet));
 
             packet_info->src_endpoint_id = rx_port_id;
+            packet_info->dst_endpoint_id = 0;
+            
 
             if ( packet_len >= sizeof(rte_ether_hdr) ) {
 
@@ -109,7 +111,7 @@ flow_classifier::flow_classifier(std::string                      name,
 
 uint16_t flow_classifier::process(mbuf_vec_base& mbuf_vec) {
     for ( uint16_t packet_index = 0; packet_index < mbuf_vec.size(); ++packet_index ) {
-        rte_mbuf* current_packet = mbuf_vec.data()[packet_index];
+        rte_mbuf* current_packet = mbuf_vec.begin()[packet_index];
 
         flow_hash fhash = 0;
 

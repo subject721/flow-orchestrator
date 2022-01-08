@@ -11,6 +11,7 @@
 
 #include <sys/types.h>
 #include <unistd.h>
+#include <mutex>
 
 
 #include <boost/date_time/posix_time/posix_time.hpp>
@@ -21,6 +22,8 @@ static const char* GREEN_COLOR  = "\x1b[0;32m";
 static const char* ORANGE_COLOR = "\x1b[0;33m";
 
 constexpr const fdescriptor::fdtype fdescriptor::INVALID_FD;
+
+
 
 template < class TStream >
 class color_inserter : noncopyable
@@ -40,9 +43,13 @@ private:
     stream_type& stream;
 };
 
+static std::mutex _log_mtx;
+
 void _log(log_message msg) {
     using namespace boost::posix_time;
     using namespace boost::gregorian;
+
+    std::lock_guard<std::mutex> guard(_log_mtx);
 
     ptime now = microsec_clock::local_time();
 

@@ -97,6 +97,8 @@ dpdk_ethdev::dpdk_ethdev(uint64_t                        port_id,
         }
     }
 
+    enable_promiscious_mode(true);
+
     status = rte_eth_dev_set_ptypes(port_id, RTE_PTYPE_UNKNOWN, nullptr, 0);
 
     if ( status < 0 ) {
@@ -163,6 +165,13 @@ uint16_t dpdk_ethdev::tx_burst(uint16_t queue_id, rte_mbuf** mbufs, uint16_t num
 
 uint16_t dpdk_ethdev::tx_flush(uint16_t queue_id) {
     return 0;
+}
+
+void dpdk_ethdev::enable_promiscious_mode(bool state) {
+    if(state)
+        rte_eth_promiscuous_enable(get_port_id());
+    else
+        rte_eth_promiscuous_disable(get_port_id());
 }
 
 rte_ether_addr dpdk_ethdev::get_mac_addr() const {

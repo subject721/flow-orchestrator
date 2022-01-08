@@ -52,6 +52,10 @@ public:
         return port_num;
     }
 
+    virtual void start() = 0;
+
+    virtual void stop() = 0;
+
     // Yes I'm aware that virtual functions have a performance impact
     // But for now I don't care
     virtual uint16_t rx_burst(mbuf_vec_base& mbuf_vec) = 0;

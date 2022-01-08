@@ -49,7 +49,7 @@ public:
 
         /*
          * Non-optimal lcore assignment scheme but should be sufficient for now. We can still blame the user for giving
-         * us shitty lcores.
+         * us the wrong lcores.
          */
 
         std::vector< lcore_info > remaining_lcores = available_lcores;
@@ -206,7 +206,6 @@ struct reduced_core_policy
         return 1;
     }
 };
-
 
 
 template < class TFlowManager >

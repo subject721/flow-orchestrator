@@ -61,6 +61,8 @@ public:
 
     uint16_t tx_flush(uint16_t queue_id);
 
+    void enable_promiscious_mode(bool state);
+
     rte_ether_addr get_mac_addr() const;
 
     static eth_device_info get_device_info(uint64_t port_id);

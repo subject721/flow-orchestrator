@@ -150,21 +150,26 @@ flow_program init_script_handler::build_program(
 
             std::shared_ptr< flow_init_proc > current = ep->get_first_rx_proc();
 
-            std::string s;
-
             auto& flow = prog.add_flow(fmt::format("flow-{}", ep->get_port_num()));
 
-            handle_flow(flow,
-                        *available_endpoints[endpoint_idx],
-                        prog.get_flow_database(),
-                        ep->get_first_rx_proc(),
-                        flow_dir::RX);
+            if(current) {
 
-            handle_flow(flow,
-                        *available_endpoints[endpoint_idx],
-                        prog.get_flow_database(),
-                        ep->get_first_tx_proc(),
-                        flow_dir::TX);
+                std::string s;
+
+                handle_flow(flow,
+                            *available_endpoints[endpoint_idx],
+                            prog.get_flow_database(),
+                            ep->get_first_rx_proc(),
+                            flow_dir::RX);
+
+                handle_flow(flow,
+                            *available_endpoints[endpoint_idx],
+                            prog.get_flow_database(),
+                            ep->get_first_tx_proc(),
+                            flow_dir::TX);
+            } else {
+                log(LOG_INFO, "Flow for endpoint {} is empty", ep->name());
+            }
 
             flow.set_endpoint(std::move(available_endpoints[endpoint_idx]));
         }
