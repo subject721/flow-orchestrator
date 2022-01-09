@@ -15,6 +15,12 @@ eth_dpdk_endpoint::eth_dpdk_endpoint(std::string                     name,
 eth_dpdk_endpoint::~eth_dpdk_endpoint() {}
 
 uint16_t eth_dpdk_endpoint::rx_burst(mbuf_vec_base& mbuf_vec) {
+#ifdef DEBUG
+    if(mbuf_vec.size()) {
+        log(LOG_WARN, "eth_dpdk_endpoint::rx_burst mbuf_vec is not empty!");
+    }
+#endif
+
     uint16_t rx_count = get_ethdev()->rx_burst(0, mbuf_vec.end(), mbuf_vec.num_free_tail());
 
     mbuf_vec.grow_tail(rx_count);

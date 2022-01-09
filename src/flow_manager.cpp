@@ -12,7 +12,7 @@
 
 
 flow_distributor::flow_distributor(size_t max_ports, size_t num_queues, uint32_t ring_size) :
-    max_ports(max_ports), num_queues(num_queues), ring_size(ring_size) {
+    max_ports(max_ports), num_queues(num_queues), num_active_ports(0), ring_size(ring_size) {
 
     size_t total_num_rings = max_ports * num_queues;
 
@@ -34,11 +34,17 @@ void flow_distributor::push_packets(uint16_t src_port_id, uint16_t queue_id, mbu
 
         auto* packet_info = reinterpret_cast< packet_private_info* >(rte_mbuf_to_priv(current_mbuf));
 
-        if ( unlikely(packet_info->dst_endpoint_id == PORT_ID_BROADCAST) ) {
-            for ( size_t port_id = queue_id; port_id < rings.size(); port_id += num_queues ) {
+        if ( packet_info->dst_endpoint_id == PORT_ID_BROADCAST) {
+            for ( size_t port_id = 0; port_id < num_active_ports; ++port_id ) {
+
+                if(port_id == packet_info->src_endpoint_id)
+                    continue;
+
                 rte_mbuf_refcnt_update(current_mbuf, 1);
 
-                if ( !rings[port_id].enqueue_single(current_mbuf) ) {
+                size_t ridx = (port_id * num_queues) + queue_id;
+
+                if ( !rings[ridx].enqueue_single(current_mbuf) ) {
                     rte_pktmbuf_free(current_mbuf);
                 }
             }
@@ -130,6 +136,9 @@ void flow_manager::load(flow_program prog) {
     }
 
     pdata->num_endpoints = index;
+
+
+    pdata->distributor.set_num_active_ports(pdata->num_endpoints);
 }
 
 void flow_manager::start() {
@@ -180,56 +189,76 @@ void flow_manager::stop() {
     pdata->active.store(false);
 }
 
-void flow_manager::endpoint_work_callback(const std::vector< size_t >& endpoint_ids) {
+void flow_manager::endpoint_work_callback(const size_t* endpoint_ids, size_t num_endpoint_ids, std::atomic_bool& run_state) {
     private_data* p = pdata.get();
 
     static_mbuf_vec<BURST_SIZE> mbuf_vec;
 
-    auto lcore_id = rte_lcore_id();
+    //auto lcore_id = rte_lcore_id();
 
-    for(size_t ep_id : endpoint_ids) {
-        //log(LOG_INFO, "lcore{} : endpoint callback - handling endpoint {}", lcore_id, ep_id);
+    flow_proc_context ctx(flow_dir::RX, 0);
 
-        auto& ep = p->proc_endpoints[ep_id];
+    while(run_state.load()) {
 
-        ep->rx_burst(mbuf_vec);
+        const size_t* ep_id_ptr     = endpoint_ids;
+        const size_t* ep_id_ptr_end = endpoint_ids + num_endpoint_ids;
 
-        //log(LOG_INFO, "lcore{} : pulled {} packets from endpoint {}", lcore_id, num_bufs, ep_id);
+        while ( ep_id_ptr != ep_id_ptr_end ) {
+            uint16_t ep_id = (uint16_t) *ep_id_ptr;
 
-        p->rx_proc_flows[ep_id]->process(mbuf_vec);
+            ctx.set_related_endpoint_id(ep_id);
 
-        p->distributor.push_packets(ep_id, 0, mbuf_vec);
+            // log(LOG_INFO, "lcore{} : endpoint callback - handling endpoint {}", lcore_id, ep_id);
+
+            auto& ep = p->proc_endpoints[ep_id];
+
+            ep->rx_burst(mbuf_vec);
+
+            // log(LOG_INFO, "lcore{} : pulled {} packets from endpoint {}", lcore_id, num_bufs, ep_id);
+
+            p->rx_proc_flows[ep_id]->process(mbuf_vec, ctx);
+
+            p->distributor.push_packets(ep_id, 0, mbuf_vec);
+
+            ++ep_id_ptr;
+        }
+
+        if ( mbuf_vec.size() ) {
+            log(LOG_WARN, "mbuf_vec has size != 0 after endpoint handling!");
+        }
+
+        // rte_delay_ms(100);
     }
-
-    if(mbuf_vec.size()) {
-        log(LOG_WARN, "mbuf_vec has size != 0 after endpoint handling!");
-    }
-
-    //rte_delay_ms(100);
 }
 
-void flow_manager::distributor_work_callback(const std::vector< size_t >& distributor_ids) {
+void flow_manager::distributor_work_callback(const size_t* distributor_ids, size_t num_distributor_ids, std::atomic_bool& run_state) {
     private_data* p = pdata.get();
 
     static_mbuf_vec<BURST_SIZE> mbuf_vec;
 
-    auto lcore_id = rte_lcore_id();
+    //auto lcore_id = rte_lcore_id();
 
-    //log(LOG_INFO, "lcore{} : distributor callback - collecting packets", lcore_id);
+    //flow_proc_context ctx(flow_dir::TX, 0);
 
-    for(size_t index = 0; index < p->num_endpoints; ++index) {
-        uint16_t num_pulled_bufs = p->distributor.pull_packets(index, 0, mbuf_vec);
+    while(run_state.load()) {
 
-        //log(LOG_INFO, "lcore{} : transmitting {} packets on endpoint {}", lcore_id, num_pulled_bufs, index);
+        // const size_t* distributor_id_ptr = distributor_ids;
+        // const size_t* distributor_id_ptr_end = distributor_ids + num_distributor_ids;
 
-        p->proc_endpoints[index]->tx_burst(mbuf_vec);
+        // log(LOG_INFO, "lcore{} : distributor callback - collecting packets", lcore_id);
 
-        // This will free all remaining mbufs if there are any
-        mbuf_vec.free();
+        for ( uint16_t index = 0; index < (uint16_t) p->num_endpoints; ++index ) {
+            //ctx.set_related_endpoint_id(index);
 
-//        if(num_tx_bufs < num_pulled_bufs) {
-//            mbuf_vec.free_back(num_pulled_bufs - num_tx_bufs);
-//        }
+            uint16_t num_pulled_bufs = p->distributor.pull_packets(index, 0, mbuf_vec);
+
+            // log(LOG_INFO, "lcore{} : transmitting {} packets on endpoint {}", lcore_id, num_pulled_bufs, index);
+
+            p->proc_endpoints[index]->tx_burst(mbuf_vec);
+
+            // This will free all remaining mbufs if there are any
+            mbuf_vec.free();
+        }
     }
 
     //rte_delay_ms(100);

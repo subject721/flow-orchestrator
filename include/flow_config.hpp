@@ -16,26 +16,7 @@
 #include <list>
 #include <map>
 
-enum class flow_dir
-{
-    RX,
-    TX
-};
 
-template < flow_dir DIR >
-struct flow_dir_label;
-
-template <>
-struct flow_dir_label<flow_dir::RX>
-{
-    static const std::string name;
-};
-
-template <>
-struct flow_dir_label<flow_dir::TX>
-{
-    static const std::string name;
-};
 
 struct dev_info
 {
@@ -279,5 +260,3 @@ private:
 
     lua_engine lua;
 };
-
-std::string get_flow_dir_name(flow_dir dir);

@@ -107,9 +107,9 @@ public:
 
             lcore_threads.emplace_front(distributor_mapping.first,
                                         [this, dist_ids = std::move(distributor_indicies), distributor_callback]() {
-                                            while ( run_flag.load() ) {
-                                                (this->get_flow_manager().*distributor_callback)(dist_ids);
-                                            }
+                                            //while ( run_flag.load() ) {
+                                                (this->get_flow_manager().*distributor_callback)(dist_ids.data(), dist_ids.size(), run_flag);
+                                            //}
                                         });
         }
 
@@ -118,9 +118,9 @@ public:
 
             lcore_threads.emplace_front(endpoint_mapping.first,
                                         [this, dist_ids = std::move(endpoint_indicies), endpoint_callback]() {
-                                            while ( run_flag.load() ) {
-                                                (this->get_flow_manager().*endpoint_callback)(dist_ids);
-                                            }
+                                            //while ( run_flag.load() ) {
+                                                (this->get_flow_manager().*endpoint_callback)(dist_ids.data(), dist_ids.size(), run_flag);
+                                            //}
                                         });
         }
     }

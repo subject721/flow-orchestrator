@@ -41,3 +41,6 @@ endforeach
 foreach simd_flag, simd_define : simd_define_map
     cfg.set(simd_define, simd_flag in simd_flags)
 endforeach
+
+
+add_project_arguments(['-fstack-protector-all'], language: ['c', 'cpp'])

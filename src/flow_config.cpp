@@ -8,9 +8,6 @@
 #include <common/file_utils.hpp>
 
 
-const std::string flow_dir_label< flow_dir::RX >::name = "rx";
-
-const std::string flow_dir_label< flow_dir::TX >::name = "tx";
 
 
 flow_init_proc& flow_init_proc::param(const std::string& key, const std::string& value) {
@@ -219,13 +216,3 @@ std::string init_script_handler::cb_get_config_var(const std::string& name) cons
     return {};
 }
 
-std::string get_flow_dir_name(flow_dir dir) {
-    switch ( dir ) {
-        case flow_dir::RX:
-            return flow_dir_label< flow_dir::RX >::name;
-        case flow_dir::TX:
-            return flow_dir_label< flow_dir::TX >::name;
-        default:
-            throw std::invalid_argument("invalid direction");
-    }
-}

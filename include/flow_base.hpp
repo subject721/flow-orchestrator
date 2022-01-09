@@ -10,6 +10,28 @@
 #include "common/network_utils.hpp"
 #include "dpdk/dpdk_common.hpp"
 
+
+enum class flow_dir
+{
+    RX,
+    TX
+};
+
+template < flow_dir DIR >
+struct flow_dir_label;
+
+template <>
+struct flow_dir_label<flow_dir::RX>
+{
+    static const std::string name;
+};
+
+template <>
+struct flow_dir_label<flow_dir::TX>
+{
+    static const std::string name;
+};
+
 enum class ExecutionPolicyType
 {
     REDUCED_CORE_COUNT_POLICY
@@ -85,7 +107,7 @@ class flow_executor_base : noncopyable
 public:
     using flow_manager_type = TFlowManager;
 
-    using worker_callback_type = void (flow_manager_type::*)(const std::vector< size_t >&);
+    using worker_callback_type = void (flow_manager_type::*)(const size_t*, size_t, std::atomic_bool&);
 
     flow_executor_base(flow_manager_type& flow_manager) : flow_manager(flow_manager) {}
 
@@ -107,3 +129,6 @@ protected:
 private:
     flow_manager_type& flow_manager;
 };
+
+
+std::string get_flow_dir_name(flow_dir dir);

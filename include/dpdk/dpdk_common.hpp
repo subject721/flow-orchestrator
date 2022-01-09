@@ -166,6 +166,9 @@ public:
 
     __inline void free_front(uint16_t num) noexcept {
         if ( unlikely(num > size()) ) {
+#ifdef DEBUG
+            log(LOG_WARN, "mbuf_vec::free_front num = {}, size = {}", num, size());
+#endif
             num = size();
         }
 
@@ -176,6 +179,9 @@ public:
 
     __inline void consume_front(uint16_t num) noexcept {
         if ( unlikely(num > size()) ) {
+#ifdef DEBUG
+            log(LOG_WARN, "mbuf_vec::consume_front num = {}, size = {}", num, size());
+#endif
             num = size();
         }
 
@@ -184,6 +190,9 @@ public:
 
     __inline void free_back(uint16_t num) noexcept {
         if ( unlikely(num > size()) ) {
+#ifdef DEBUG
+            log(LOG_WARN, "mbuf_vec::free_back num = {}, size = {}", num, size());
+#endif
             num = size();
         }
 
@@ -194,6 +203,9 @@ public:
 
     __inline void consume_back(uint16_t num) noexcept {
         if ( unlikely(num > size()) ) {
+#ifdef DEBUG
+            log(LOG_WARN, "mbuf_vec::consume_back num = {}, size = {}", num, size());
+#endif
             num = size();
         }
 
@@ -206,6 +218,9 @@ public:
 
     __inline uint16_t grow_tail(uint16_t num) noexcept {
         if(num > num_free_tail()) {
+#ifdef DEBUG
+            log(LOG_WARN, "mbuf_vec::grow_tail num = {}, num_free_tail = {}", num, num_free_tail());
+#endif
             num = num_free_tail();
         }
 
@@ -216,10 +231,13 @@ public:
 
     __inline void set_size(uint16_t num) noexcept {
         if ( unlikely((tail_offset + num) > capacity()) ) {
-            num = capacity() - tail_offset;
+#ifdef DEBUG
+            log(LOG_WARN, "mbuf_vec::set_size num = {}, tail_offset = {}, capacity = {}", num, tail_offset, capacity());
+#endif
+            tail_offset = capacity();
+        } else {
+            tail_offset += num;
         }
-
-        tail_offset += num;
     }
 
     __inline void repack() noexcept {

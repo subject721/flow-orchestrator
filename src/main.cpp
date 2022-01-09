@@ -249,14 +249,15 @@ void flow_orchestrator_app::parse_args(int argc, char** argv) {
     cache_size    = 128;
     dataroom_size = RTE_MBUF_DEFAULT_BUF_SIZE;
     private_size  = align_to_next_multiple(sizeof(packet_private_info), (size_t) RTE_MBUF_PRIV_ALIGN);
+
 }
 
 
 void flow_orchestrator_app::setup() {
     log(LOG_INFO, "Settings up devices and flows");
 
-    dpdk_options.push_back("--no-shconf");
-    dpdk_options.push_back("--in-memory");
+    //dpdk_options.push_back("--no-shconf");
+    //dpdk_options.push_back("--in-memory");
 
     std::vector<dev_info> dev_info_list;
 
@@ -300,6 +301,10 @@ void flow_orchestrator_app::setup() {
 
     dpdk_eal_init(dpdk_options);
 
+    log(LOG_INFO, "Creating packet memory pool: Capacity: {}, Cache Size: {}, Dataroom Size: {}, Private Size: {}",
+        pool_size, cache_size, dataroom_size, private_size);
+
+
     mempool = std::make_shared< dpdk_mempool >(pool_size, cache_size, dataroom_size, private_size);
 
     // Create endpoint instances
@@ -311,6 +316,8 @@ void flow_orchestrator_app::setup() {
 
     if(!init_script_name.empty()) {
         init_script_handler init_handler;
+
+        log(LOG_INFO, "Loading flow init script {}", init_script_name);
 
         init_handler.load_init_script(init_script_name);
 

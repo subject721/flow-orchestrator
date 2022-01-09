@@ -16,9 +16,9 @@ flow_processor::flow_processor(std::string name, std::shared_ptr< dpdk_mempool >
 
 
 ingress_packet_validator::ingress_packet_validator(std::string name, std::shared_ptr< dpdk_mempool > mempool, std::shared_ptr< flow_database > flow_database_ptr) :
-    flow_processor(std::move(name), std::move(mempool)), rx_port_id(0) {}
+    flow_processor(std::move(name), std::move(mempool)) {}
 
-uint16_t ingress_packet_validator::process(mbuf_vec_base& mbuf_vec) {
+uint16_t ingress_packet_validator::process(mbuf_vec_base& mbuf_vec, flow_proc_context& ctx) {
     for ( uint16_t packet_index = 0; packet_index < mbuf_vec.size(); ++packet_index ) {
         rte_mbuf* current_packet = mbuf_vec.begin()[packet_index];
 
@@ -29,11 +29,11 @@ uint16_t ingress_packet_validator::process(mbuf_vec_base& mbuf_vec) {
 
             auto* packet_info = reinterpret_cast< packet_private_info* >(rte_mbuf_to_priv(current_packet));
 
-            packet_info->src_endpoint_id = rx_port_id;
-            packet_info->dst_endpoint_id = 0;
-            
+            packet_info->src_endpoint_id = ctx.get_related_endpoint_id();
+            packet_info->dst_endpoint_id = PORT_ID_BROADCAST;
 
-            if ( packet_len >= sizeof(rte_ether_hdr) ) {
+
+            if ( likely(packet_len >= sizeof(rte_ether_hdr) )) {
 
                 rte_ether_hdr* ether_header = (rte_pktmbuf_mtod(current_packet, rte_ether_hdr*));
 
@@ -59,6 +59,8 @@ uint16_t ingress_packet_validator::process(mbuf_vec_base& mbuf_vec) {
                                                       packet_len - l2_len,
                                                       packet_info);
                 }
+            } else {
+                drop_packet = true;
             }
 
             if ( unlikely(drop_packet) ) {
@@ -109,7 +111,7 @@ flow_classifier::flow_classifier(std::string                      name,
                                  std::shared_ptr< flow_database > flow_database_ptr) :
     flow_processor(std::move(name), std::move(mempool)), flow_database_ptr(std::move(flow_database_ptr)) {}
 
-uint16_t flow_classifier::process(mbuf_vec_base& mbuf_vec) {
+uint16_t flow_classifier::process(mbuf_vec_base& mbuf_vec, flow_proc_context& ctx) {
     for ( uint16_t packet_index = 0; packet_index < mbuf_vec.size(); ++packet_index ) {
         rte_mbuf* current_packet = mbuf_vec.begin()[packet_index];
 

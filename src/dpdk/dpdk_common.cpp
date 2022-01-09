@@ -114,7 +114,7 @@ int dpdk_mempool::bulk_alloc(mbuf_vec_base& mbuf_vec, uint16_t count) {
         count = mbuf_vec.num_free_tail();
     }
 
-    int rc = bulk_alloc(mbuf_vec.begin(), count);
+    int rc = bulk_alloc(mbuf_vec.end(), count);
 
     if ( !rc ) {
         mbuf_vec.grow_tail(count);
@@ -159,7 +159,7 @@ void mbuf_ring::init(size_t capacity) {
         int error_code = rte_errno;
 
         throw std::runtime_error(
-            fmt::format("could not create sp/sc ring with capacity of {}: {}", capacity, rte_strerror(error_code)));
+            fmt::format("could not create mp/mc ring with capacity of {}: {}", capacity, rte_strerror(error_code)));
     }
 
     ring = std::unique_ptr< rte_ring, rte_ring_deleter >(new_ring_ptr);

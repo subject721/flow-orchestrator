@@ -40,7 +40,7 @@ public:
         ++current_flow_length;
     }
 
-    __inline uint16_t process(mbuf_vec_base& mbuf_vec) {
+    __inline uint16_t process(mbuf_vec_base& mbuf_vec, flow_proc_context& ctx) {
         for ( size_t idx = 0; idx < MAX_FLOW_LENGTH; ++idx ) {
 
             uint32_t proc_id = proc_order[idx];
@@ -56,7 +56,7 @@ public:
             if ( unlikely( proc_id & INACTIVE_IDX_MASK ))
                 continue;
 
-            uint16_t ret = procs[proc_id]->process(mbuf_vec);
+            uint16_t ret = procs[proc_id]->process(mbuf_vec, ctx);
 
             if ( ret < mbuf_vec.size() ) {
                 mbuf_vec.free_back(mbuf_vec.size() - ret);
@@ -117,11 +117,16 @@ public:
 
     uint16_t pull_packets(uint16_t port_id, uint16_t queue_id, mbuf_vec_base& mbuf_vec);
 
+    void set_num_active_ports(size_t num_ports) {
+        num_active_ports = num_ports;
+    }
 
 private:
     size_t   max_ports;
     size_t   num_queues;
+    size_t   num_active_ports;
     uint32_t ring_size;
+
 
     std::vector< mbuf_ring > rings;
 };
@@ -145,9 +150,9 @@ public:
     void stop();
 
 private:
-    void endpoint_work_callback(const std::vector< size_t >& endpoint_ids);
+    void endpoint_work_callback(const size_t* endpoint_ids, size_t num_endpoint_ids, std::atomic_bool& run_state);
 
-    void distributor_work_callback(const std::vector< size_t >& distributor_ids);
+    void distributor_work_callback(const size_t* distributor_ids, size_t num_distributor_ids, std::atomic_bool& run_state);
 
     struct private_data;
 

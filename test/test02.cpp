@@ -29,15 +29,17 @@ public:
 
 
 private:
-    void run_endpoint_tasks(const std::vector< size_t >& indicies) {
-        for ( size_t index : indicies ) {
+    void run_endpoint_tasks(const size_t* indicies, size_t num_indicies, std::atomic_bool& run_flag) {
+        for ( size_t i = 0; i < num_indicies; ++i ) {
+            size_t index = indicies[i];
             log(LOG_INFO, "Running endpoint task: {} on lcore {}", index, rte_lcore_id());
             rte_delay_us_sleep(200);
         }
     }
 
-    void run_distributor_tasks(const std::vector< size_t >& indicies) {
-        for ( size_t index : indicies ) {
+    void run_distributor_tasks(const size_t* indicies, size_t num_indicies, std::atomic_bool& run_flag) {
+        for ( size_t i = 0; i < num_indicies; ++i ) {
+            size_t index = indicies[i];
             log(LOG_INFO, "Running distributor task: {} on lcore {}", index, rte_lcore_id());
             rte_delay_us_sleep(200);
         }
