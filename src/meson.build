@@ -12,6 +12,10 @@ flow_orchestrator_sources += files([
     'flow_manager.cpp'
 ])
 
+if opt_enable_telemetry_if
+    flow_orchestrator_sources += files(['flow_telemetry.cpp'])
+endif
+
 main_source = files('main.cpp')
 
 internal_lua_utils_src = files(['lua_utils.lua'])

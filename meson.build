@@ -35,6 +35,12 @@ if opt_reduced_simd_level and opt_enable_avx512
     error('Cannot enable AVX512 while using a reduced SIMD feature set at the same time!')
 endif
 
+opt_enable_telemetry_if = true
+
+
+cfg.set10('TELEMETRY_ENABLED', opt_enable_telemetry_if)
+
+
 cxx_flags += '-Wno-unused-parameter'
 
 subdir('buildcfg')

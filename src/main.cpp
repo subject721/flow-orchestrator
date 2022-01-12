@@ -30,6 +30,9 @@
 #include <flow_config.hpp>
 #include <flow_manager.hpp>
 
+#if TELEMETRY_ENABLED == 1
+#include <flow_telemetry.hpp>
+#endif // TELEMETRY_ENABLED
 
 static std::mutex global_lock;
 
@@ -102,6 +105,12 @@ private:
     flow_manager flow_mgr;
 
     std::string init_script_name;
+
+#if TELEMETRY_ENABLED == 1
+    std::string telemetry_addr;
+
+    std::unique_ptr<telemetry_distributor> telemetry;
+#endif
 };
 
 
@@ -192,6 +201,10 @@ static const std::string DPDK_OPTIONS_FLAG = "dpdk-options";
 static const std::string DEVICES_FLAG = "devices";
 static const std::string INIT_SCRIPT_FLAG = "init-script";
 
+#if TELEMETRY_ENABLED == 1
+static const std::string TELEMETRY_ENDPOINT_FLAG = "telemetry-endpoint";
+#endif
+
 void flow_orchestrator_app::parse_args(int argc, char** argv) {
 
     using namespace std;
@@ -204,6 +217,10 @@ void flow_orchestrator_app::parse_args(int argc, char** argv) {
         DPDK_OPTIONS_FLAG.c_str(), po::value< std::vector< std::string > >()->multitoken(), "dpdk options")(
         DEVICES_FLAG.c_str(), po::value< std::vector< std::string > >()->multitoken(), "Devices to use")(
         INIT_SCRIPT_FLAG.c_str(), po::value< std::string >(), "Init script to load");
+
+#if TELEMETRY_ENABLED == 1
+    desc.add_options()(TELEMETRY_ENDPOINT_FLAG.c_str(), po::value<std::string>(), "Telemetry endpoint");
+#endif
 
     po::positional_options_description p;
 
@@ -223,6 +240,14 @@ void flow_orchestrator_app::parse_args(int argc, char** argv) {
 
         return;
     }
+
+#if TELEMETRY_ENABLED == 1
+    if(vm.count(TELEMETRY_ENDPOINT_FLAG)) {
+        telemetry_addr = vm[TELEMETRY_ENDPOINT_FLAG].as<std::string>();
+    } else {
+        telemetry_addr = "tcp://127.0.0.1:8123";
+    }
+#endif // TELEMETRY_ENABLED
 
     if(vm.count(INIT_SCRIPT_FLAG)) {
         init_script_name = vm[INIT_SCRIPT_FLAG].as<std::string>();
@@ -255,6 +280,10 @@ void flow_orchestrator_app::parse_args(int argc, char** argv) {
 
 void flow_orchestrator_app::setup() {
     log(LOG_INFO, "Settings up devices and flows");
+
+#if TELEMETRY_ENABLED == 1
+    telemetry = std::make_unique<telemetry_distributor>(telemetry_addr);
+#endif
 
     //dpdk_options.push_back("--no-shconf");
     //dpdk_options.push_back("--in-memory");

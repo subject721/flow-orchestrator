@@ -10,6 +10,7 @@
 
 #mesondefine DEBUG
 
+#mesondefine TELEMETRY_ENABLED
 
 #mesondefine HAS_AVX2
 #mesondefine HAS_AVX512

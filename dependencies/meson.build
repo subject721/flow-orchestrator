@@ -20,7 +20,8 @@ dep_dpdk = dep_null
 dep_asmjit = dep_null
 dep_luajit = dep_null
 dep_sol = dep_null
-
+dep_zmq = dep_null
+dep_json = dep_null
 
 if opt_use_conan_deps
     error('Conan dependencies not supported yet!')
@@ -53,6 +54,11 @@ else
     cxx_flags += '-DSOL_LUAJIT=1'
 
     dep_fmt = dependency('fmt')
+
+    if opt_enable_telemetry_if
+        dep_zmq = dependency('libzmq')
+        dep_json = dependency('nlohmann_json')
+    endif
 endif
 
 dep_foreign = []
@@ -65,3 +71,7 @@ dep_foreign += dep_luajit
 dep_foreign += dep_sol
 dep_foreign += dep_fmt
 
+if dep_zmq.found()
+    dep_foreign += dep_zmq
+    dep_foreign += dep_json
+endif
