@@ -37,6 +37,8 @@ public:
         return second;
     }
 
+    std::string to_string() const;
+
     static lcore_info from_lcore_id(uint32_t lcore_id);
 
     static std::vector< lcore_info > get_available_worker_lcores();

@@ -85,6 +85,11 @@ private:
 
     void setup();
 
+    void init_lcores();
+
+    void load_flow_proc();
+
+
     std::unique_ptr< flow_endpoint_base > create_endpoint(const std::string& type,
                                                           const std::string& id,
                                                           const std::string& options);
@@ -100,7 +105,13 @@ private:
     uint16_t dataroom_size;
     uint16_t private_size;
 
+    std::vector<dev_info> dev_info_list;
+
     std::shared_ptr< dpdk_mempool > mempool;
+
+    std::vector<lcore_info> processing_lcores;
+
+    lcore_info main_lcore;
 
     flow_manager flow_mgr;
 
@@ -108,6 +119,7 @@ private:
 
 #if TELEMETRY_ENABLED == 1
     std::string telemetry_addr;
+    std::chrono::milliseconds  telemetry_poll_interval;
 
     std::unique_ptr<telemetry_distributor> telemetry;
 #endif
@@ -168,41 +180,60 @@ int flow_orchestrator_app::run() {
     if ( should_exit )
         return 0;
 
+    using namespace std::chrono_literals;
+
+    std::chrono::milliseconds wait_interval = 200ms;
+
+#if TELEMETRY_ENABLED == 1
+    wait_interval = telemetry_poll_interval;
+#endif
+
     bool run_state = true;
+
+//    lcore_thread main_lcore_task(main_lcore.get_lcore_id(), [this, &run_state](){
+//        while(run_state) {
+//
+//        }
+//    });
 
     log(LOG_INFO, "Starting flows");
 
-    flow_mgr.start();
+    flow_mgr.start(processing_lcores);
 
     while ( run_state ) {
         int signal_num;
 
-        if ( wait_for_signal(signal_num, std::chrono::milliseconds(200)) ) {
+        if ( wait_for_signal(signal_num, wait_interval) ) {
             if ( signal_num == SIGINT || signal_num == SIGTERM ) {
                 run_state = false;
             }
         }
 
-
-
-        // Do some other important stuff;
+#if TELEMETRY_ENABLED == 1
+        telemetry->do_update();
+#endif
     }
 
     log(LOG_INFO, "Stopping flows");
 
     flow_mgr.stop();
 
+    //main_lcore_task.join();
+
     rte_eal_mp_wait_lcore();
 
     return 0;
 }
 
-static const std::string DPDK_OPTIONS_FLAG = "dpdk-options";
-static const std::string DEVICES_FLAG = "devices";
-static const std::string INIT_SCRIPT_FLAG = "init-script";
+static const std::string_view DPDK_OPTIONS_FLAG = "dpdk-options";
+static const std::string_view DEVICES_FLAG = "devices";
+static const std::string_view INIT_SCRIPT_FLAG = "init-script";
 
 #if TELEMETRY_ENABLED == 1
-static const std::string TELEMETRY_ENDPOINT_FLAG = "telemetry-endpoint";
+static const std::string_view TELEMETRY_ENDPOINT_FLAG = "telemetry-endpoint";
+static const std::string_view TELEMETRY_POLL_INTERVAL_FLAG = "telemetry-interval";
+
+static const uint32_t DEFAULT_TELEMETRY_POLL_INTERVAL = 250;
 #endif
 
 void flow_orchestrator_app::parse_args(int argc, char** argv) {
@@ -214,17 +245,19 @@ void flow_orchestrator_app::parse_args(int argc, char** argv) {
     po::options_description desc("Command line options");
 
     desc.add_options()("help", "print help")(
-        DPDK_OPTIONS_FLAG.c_str(), po::value< std::vector< std::string > >()->multitoken(), "dpdk options")(
-        DEVICES_FLAG.c_str(), po::value< std::vector< std::string > >()->multitoken(), "Devices to use")(
-        INIT_SCRIPT_FLAG.c_str(), po::value< std::string >(), "Init script to load");
+        DPDK_OPTIONS_FLAG.data(), po::value< std::vector< std::string > >()->multitoken(), "dpdk options")(
+        DEVICES_FLAG.data(), po::value< std::vector< std::string > >()->multitoken(), "Devices to use")(
+        INIT_SCRIPT_FLAG.data(), po::value< std::string >(), "Init script to load");
 
 #if TELEMETRY_ENABLED == 1
-    desc.add_options()(TELEMETRY_ENDPOINT_FLAG.c_str(), po::value<std::string>(), "Telemetry endpoint");
+    desc.add_options()(TELEMETRY_ENDPOINT_FLAG.data(), po::value<std::string>(), "Telemetry endpoint");
+    desc.add_options()(
+        TELEMETRY_POLL_INTERVAL_FLAG.data(), po::value<uint32_t>(), "Telemetry poll interval in milliseconds");
 #endif
 
     po::positional_options_description p;
 
-    p.add(DPDK_OPTIONS_FLAG.c_str(), -1);
+    p.add(DPDK_OPTIONS_FLAG.data(), -1);
 
     po::variables_map vm;
 
@@ -242,33 +275,39 @@ void flow_orchestrator_app::parse_args(int argc, char** argv) {
     }
 
 #if TELEMETRY_ENABLED == 1
-    if(vm.count(TELEMETRY_ENDPOINT_FLAG)) {
-        telemetry_addr = vm[TELEMETRY_ENDPOINT_FLAG].as<std::string>();
+    if(vm.count(TELEMETRY_ENDPOINT_FLAG.data())) {
+        telemetry_addr = vm[TELEMETRY_ENDPOINT_FLAG.data()].as<std::string>();
     } else {
         telemetry_addr = "tcp://127.0.0.1:8123";
     }
+
+    if(vm.count(TELEMETRY_POLL_INTERVAL_FLAG.data())) {
+        telemetry_poll_interval = std::chrono::milliseconds(vm[TELEMETRY_ENDPOINT_FLAG.data()].as<uint32_t>());
+    } else {
+        telemetry_poll_interval = std::chrono::milliseconds(DEFAULT_TELEMETRY_POLL_INTERVAL);
+    }
 #endif // TELEMETRY_ENABLED
 
-    if(vm.count(INIT_SCRIPT_FLAG)) {
-        init_script_name = vm[INIT_SCRIPT_FLAG].as<std::string>();
+    if(vm.count(INIT_SCRIPT_FLAG.data())) {
+        init_script_name = vm[INIT_SCRIPT_FLAG.data()].as<std::string>();
     }
 
     // Always add program name first
     dpdk_options.push_back(std::string(argv[0]));
 
-    if ( vm.count(DPDK_OPTIONS_FLAG) ) {
-        auto positional_args = vm[DPDK_OPTIONS_FLAG].as< std::vector< std::string > >();
+    if ( vm.count(DPDK_OPTIONS_FLAG.data()) ) {
+        auto positional_args = vm[DPDK_OPTIONS_FLAG.data()].as< std::vector< std::string > >();
 
         for ( const std::string& arg : positional_args ) {
             dpdk_options.push_back(arg);
         }
     }
 
-    if ( !vm.count(DEVICES_FLAG) ) {
+    if ( !vm.count(DEVICES_FLAG.data()) ) {
         throw std::runtime_error("at least one device required");
     }
 
-    device_names = vm[DEVICES_FLAG].as< std::vector< std::string > >();
+    device_names = vm[DEVICES_FLAG.data()].as< std::vector< std::string > >();
 
     pool_size     = (1 << 14);
     cache_size    = 128;
@@ -287,8 +326,6 @@ void flow_orchestrator_app::setup() {
 
     //dpdk_options.push_back("--no-shconf");
     //dpdk_options.push_back("--in-memory");
-
-    std::vector<dev_info> dev_info_list;
 
     for ( const auto& interface_identifier : device_names ) {
         dev_info info;
@@ -330,20 +367,45 @@ void flow_orchestrator_app::setup() {
 
     dpdk_eal_init(dpdk_options);
 
+    init_lcores();
+
     log(LOG_INFO, "Creating packet memory pool: Capacity: {}, Cache Size: {}, Dataroom Size: {}, Private Size: {}",
         pool_size, cache_size, dataroom_size, private_size);
 
 
     mempool = std::make_shared< dpdk_mempool >(pool_size, cache_size, dataroom_size, private_size);
 
-    // Create endpoint instances
-    std::vector< std::unique_ptr< flow_endpoint_base > > endpoints;
 
-    for(const auto& info : dev_info_list) {
-        endpoints.emplace_back(create_endpoint(info.dev_type_str.value(), info.dev_id_str.value(), info.dev_options_str.value_or("")));
+    load_flow_proc();
+
+    log(LOG_INFO, "Setup done");
+}
+
+void flow_orchestrator_app::init_lcores() {
+    main_lcore = lcore_info::get_main_lcore();
+
+    processing_lcores = lcore_info::get_available_worker_lcores();
+
+    if(processing_lcores.empty()) {
+        throw std::runtime_error("no processing lcores available");
     }
 
+    log(LOG_INFO, "main lcore: {}", main_lcore.to_string());
+
+    for(const auto& lc : processing_lcores) {
+        log(LOG_INFO, "processing lcore: {}", lc.to_string());
+    }
+}
+
+void flow_orchestrator_app::load_flow_proc() {
     if(!init_script_name.empty()) {
+        // Create endpoint instances
+        std::vector< std::unique_ptr< flow_endpoint_base > > endpoints;
+
+        for(const auto& info : dev_info_list) {
+            endpoints.emplace_back(create_endpoint(info.dev_type_str.value(), info.dev_id_str.value(), info.dev_options_str.value_or("")));
+        }
+
         init_script_handler init_handler;
 
         log(LOG_INFO, "Loading flow init script {}", init_script_name);
@@ -353,9 +415,11 @@ void flow_orchestrator_app::setup() {
         auto flow_program = init_handler.build_program(std::move(endpoints));
 
         flow_mgr.load(std::move(flow_program));
-    }
 
-    log(LOG_INFO, "Setup done");
+#if TELEMETRY_ENABLED == 1
+        flow_mgr.init_telemetry(*telemetry);
+#endif
+    }
 }
 
 std::unique_ptr< flow_endpoint_base > flow_orchestrator_app::create_endpoint(const std::string& type,

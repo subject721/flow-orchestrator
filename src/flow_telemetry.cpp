@@ -57,6 +57,7 @@ struct telemetry_distributor::private_data
 
     std::list<std::reference_wrapper<metric_base>> metrics;
 
+    std::chrono::high_resolution_clock::time_point start_time;
 };
 
 telemetry_distributor::telemetry_distributor(const std::string& endpoint_addr) {
@@ -65,6 +66,8 @@ telemetry_distributor::telemetry_distributor(const std::string& endpoint_addr) {
     pdata->socket.emplace(pdata->ctx, zmq::socket_type::pub);
 
     pdata->socket->bind(endpoint_addr);
+
+    pdata->start_time = std::chrono::high_resolution_clock::now();
 }
 
 telemetry_distributor::~telemetry_distributor() {
@@ -105,7 +108,13 @@ void telemetry_distributor::remove_metric(metric_base& m) {
 void telemetry_distributor::do_update() {
     std::lock_guard<std::mutex> guard(pdata->lk);
 
-    json msg_obj;
+    json msg_obj = json::object();
+
+    const auto now = std::chrono::high_resolution_clock::now();
+
+    const auto dur = (now - pdata->start_time);
+
+    msg_obj["timestamp"] = std::chrono::duration_cast<std::chrono::microseconds>(dur).count();
 
     for(auto& m : pdata->metrics) {
         json m_obj;
@@ -115,5 +124,6 @@ void telemetry_distributor::do_update() {
         msg_obj[m.get().get_name()] = std::move(m_obj);
     }
 
-    pdata->socket->send(zmq::buffer(msg_obj.dump()), zmq::send_flags::dontwait);
+    pdata->socket->send(zmq::buffer("metrics"), zmq::send_flags::sndmore);
+    pdata->socket->send(zmq::buffer(msg_obj.dump()), zmq::send_flags::none);
 }

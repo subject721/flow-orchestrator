@@ -17,6 +17,10 @@
 using namespace std;
 
 
+std::string lcore_info::to_string() const {
+    return fmt::format("{}/{}", get_socket_id(), get_lcore_id());
+}
+
 lcore_info lcore_info::from_lcore_id(uint32_t lcore_id) {
     return {lcore_id, static_cast< int >(rte_lcore_to_socket_id(lcore_id))};
 }

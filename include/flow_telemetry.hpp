@@ -85,6 +85,12 @@ public:
 
     using storage_adapter = TStorageAdapter;
 
+    explicit scalar_metric(std::string name) :
+        metric_base(std::move(name)),
+        value() {
+
+    }
+
     template < class TV >
     void set(TV&& new_value) {
         value.set(std::forward<TV>(new_value));

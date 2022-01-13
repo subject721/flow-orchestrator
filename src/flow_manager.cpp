@@ -70,7 +70,18 @@ uint16_t flow_distributor::pull_packets(uint16_t port_id, uint16_t queue_id, mbu
 
 struct flow_manager::private_data
 {
-    explicit private_data(uint16_t num_queues) : active(false), distributor(MAX_NUM_FLOWS, num_queues, 128) {}
+    explicit private_data(uint16_t num_queues) : active(false), distributor(MAX_NUM_FLOWS, num_queues, 128)
+#if TELEMETRY_ENABLED == 1
+    ,flow_metric_grp("flows")
+    ,
+        m_total_packets("total_packets")
+
+    {
+                flow_metric_grp.add_metric(m_total_packets);
+            }
+#else
+    {}
+#endif
 
     std::atomic_bool active;
 
@@ -84,6 +95,12 @@ struct flow_manager::private_data
     std::array< std::unique_ptr< flow_endpoint_base >, MAX_NUM_FLOWS > proc_endpoints;
 
     std::unique_ptr<flow_executor_base<flow_manager>> executor;
+
+#if TELEMETRY_ENABLED == 1
+    metric_group flow_metric_grp;
+
+    scalar_metric<uint64_t> m_total_packets;
+#endif
 };
 
 flow_manager::flow_manager() {
@@ -141,7 +158,13 @@ void flow_manager::load(flow_program prog) {
     pdata->distributor.set_num_active_ports(pdata->num_endpoints);
 }
 
-void flow_manager::start() {
+#if TELEMETRY_ENABLED == 1
+void flow_manager::init_telemetry(telemetry_distributor& telemetry) {
+    telemetry.add_metric(pdata->flow_metric_grp);
+}
+#endif
+
+void flow_manager::start(const std::vector<lcore_info>& available_cores) {
     if(!pdata) {
         throw std::runtime_error("no program loaded");
     }
@@ -162,7 +185,7 @@ void flow_manager::start() {
         }
     }
 
-    pdata->executor->setup(endpoint_numa_ids, 1, lcore_info::get_available_worker_lcores());
+    pdata->executor->setup(endpoint_numa_ids, 1, available_cores);
 
     pdata->active.store(true);
 
@@ -252,6 +275,9 @@ void flow_manager::distributor_work_callback(const size_t* distributor_ids, size
 
             uint16_t num_pulled_bufs = p->distributor.pull_packets(index, 0, mbuf_vec);
 
+#if TELEMETRY_ENABLED == 1
+            p->m_total_packets.set(1337);
+#endif
             // log(LOG_INFO, "lcore{} : transmitting {} packets on endpoint {}", lcore_id, num_pulled_bufs, index);
 
             p->proc_endpoints[index]->tx_burst(mbuf_vec);

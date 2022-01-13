@@ -14,6 +14,11 @@
 #include "flow_endpoints.hpp"
 #include "flow_config.hpp"
 
+#if TELEMETRY_ENABLED == 1
+#include "flow_telemetry.hpp"
+#endif
+
+
 class packet_proc_flow : noncopyable
 {
 public:
@@ -145,7 +150,11 @@ public:
 
     void load(flow_program prog);
 
-    void start();
+#if TELEMETRY_ENABLED == 1
+    void init_telemetry(telemetry_distributor& telemetry);
+#endif
+
+    void start(const std::vector<lcore_info>& available_cores);
 
     void stop();
 
