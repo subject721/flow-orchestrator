@@ -74,7 +74,7 @@ struct flow_manager::private_data
 #if TELEMETRY_ENABLED == 1
     ,flow_metric_grp("flows")
     ,
-        m_total_packets("total_packets")
+        m_total_packets("total_packets", metric_unit::PACKETS)
 
     {
                 flow_metric_grp.add_metric(m_total_packets);
@@ -99,7 +99,7 @@ struct flow_manager::private_data
 #if TELEMETRY_ENABLED == 1
     metric_group flow_metric_grp;
 
-    scalar_metric<uint64_t> m_total_packets;
+    per_lcore_metric<uint64_t> m_total_packets;
 #endif
 };
 
@@ -161,6 +161,12 @@ void flow_manager::load(flow_program prog) {
 #if TELEMETRY_ENABLED == 1
 void flow_manager::init_telemetry(telemetry_distributor& telemetry) {
     telemetry.add_metric(pdata->flow_metric_grp);
+
+    for(auto& endpoint : pdata->proc_endpoints) {
+        if(endpoint) {
+            endpoint->init_telemetry(telemetry);
+        }
+    }
 }
 #endif
 
@@ -276,7 +282,7 @@ void flow_manager::distributor_work_callback(const size_t* distributor_ids, size
             uint16_t num_pulled_bufs = p->distributor.pull_packets(index, 0, mbuf_vec);
 
 #if TELEMETRY_ENABLED == 1
-            p->m_total_packets.set(1337);
+            p->m_total_packets.add(num_pulled_bufs);
 #endif
             // log(LOG_INFO, "lcore{} : transmitting {} packets on endpoint {}", lcore_id, num_pulled_bufs, index);
 

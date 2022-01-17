@@ -11,6 +11,27 @@ void metric_base::updated() {
 
 }
 
+const char* metric_base::get_unit_str(metric_unit unit) {
+    switch(unit) {
+    case metric_unit::PACKETS:
+        return "pkts";
+    case metric_unit::BITS:
+        return "bits";
+    case metric_unit::BYTES:
+        return "bytes";
+    case metric_unit::NANOSECONDS:
+        return "nsec";
+    case metric_unit::MICROSECONDS:
+        return "usec";
+    case metric_unit::MILLISECONDS:
+        return "msec";
+    case metric_unit::SECONDS:
+        return "sec";
+    default:
+        return "";
+    }
+}
+
 void metric_group::add_metric(metric_base& m) {
     std::lock_guard<std::mutex> guard(lk);
 
@@ -35,15 +56,15 @@ void metric_group::remove_metric(metric_base& m) {
     }
 }
 
-void metric_group::serialize(json& v) {
+void metric_group::serialize(json& v, const std::string& prefix) {
     std::lock_guard<std::mutex> guard(lk);
 
+    std::string next_prefix;
+
     for(auto& m : child_metrics) {
-        json m_obj;
+        next_prefix = fmt::format("{}::{}", prefix, m.get().get_name());
 
-        m.get().serialize(m_obj);
-
-        v[m.get().get_name()] = std::move(m_obj);
+        m.get().serialize(v, next_prefix);
     }
 }
 
@@ -115,14 +136,20 @@ void telemetry_distributor::do_update() {
     const auto dur = (now - pdata->start_time);
 
     msg_obj["timestamp"] = std::chrono::duration_cast<std::chrono::microseconds>(dur).count();
+    msg_obj["type"] = "root";
+
+    json values = json::array();
+
+    std::string prefix;
 
     for(auto& m : pdata->metrics) {
-        json m_obj;
 
-        m.get().serialize(m_obj);
+        prefix = m.get().get_name();
 
-        msg_obj[m.get().get_name()] = std::move(m_obj);
+        m.get().serialize(values, prefix);
     }
+
+    msg_obj["values"] = std::move(values);
 
     pdata->socket->send(zmq::buffer("metrics"), zmq::send_flags::sndmore);
     pdata->socket->send(zmq::buffer(msg_obj.dump()), zmq::send_flags::none);

@@ -10,6 +10,9 @@
 #include "common/network_utils.hpp"
 #include "dpdk/dpdk_common.hpp"
 
+#if TELEMETRY_ENABLED == 1
+#include "flow_telemetry.hpp"
+#endif
 
 enum class flow_dir
 {
@@ -83,6 +86,10 @@ public:
     virtual uint16_t rx_burst(mbuf_vec_base& mbuf_vec) = 0;
 
     virtual uint16_t tx_burst(mbuf_vec_base& mbuf_vec) = 0;
+
+#if TELEMETRY_ENABLED == 1
+    virtual void init_telemetry(telemetry_distributor& telemetry) {}
+#endif
 
 private:
     int port_num;

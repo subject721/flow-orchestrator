@@ -32,7 +32,7 @@
 
 #if TELEMETRY_ENABLED == 1
 #include <flow_telemetry.hpp>
-#endif // TELEMETRY_ENABLED
+#endif  // TELEMETRY_ENABLED
 
 static std::mutex global_lock;
 
@@ -105,11 +105,11 @@ private:
     uint16_t dataroom_size;
     uint16_t private_size;
 
-    std::vector<dev_info> dev_info_list;
+    std::vector< dev_info > dev_info_list;
 
     std::shared_ptr< dpdk_mempool > mempool;
 
-    std::vector<lcore_info> processing_lcores;
+    std::vector< lcore_info > processing_lcores;
 
     lcore_info main_lcore;
 
@@ -118,10 +118,10 @@ private:
     std::string init_script_name;
 
 #if TELEMETRY_ENABLED == 1
-    std::string telemetry_addr;
-    std::chrono::milliseconds  telemetry_poll_interval;
+    std::string               telemetry_addr;
+    std::chrono::milliseconds telemetry_poll_interval;
 
-    std::unique_ptr<telemetry_distributor> telemetry;
+    std::unique_ptr< telemetry_distributor > telemetry;
 #endif
 };
 
@@ -190,11 +190,11 @@ int flow_orchestrator_app::run() {
 
     bool run_state = true;
 
-//    lcore_thread main_lcore_task(main_lcore.get_lcore_id(), [this, &run_state](){
-//        while(run_state) {
-//
-//        }
-//    });
+    //    lcore_thread main_lcore_task(main_lcore.get_lcore_id(), [this, &run_state](){
+    //        while(run_state) {
+    //
+    //        }
+    //    });
 
     log(LOG_INFO, "Starting flows");
 
@@ -218,7 +218,7 @@ int flow_orchestrator_app::run() {
 
     flow_mgr.stop();
 
-    //main_lcore_task.join();
+    // main_lcore_task.join();
 
     rte_eal_mp_wait_lcore();
 
@@ -226,11 +226,11 @@ int flow_orchestrator_app::run() {
 }
 
 static const std::string_view DPDK_OPTIONS_FLAG = "dpdk-options";
-static const std::string_view DEVICES_FLAG = "devices";
-static const std::string_view INIT_SCRIPT_FLAG = "init-script";
+static const std::string_view DEVICES_FLAG      = "devices";
+static const std::string_view INIT_SCRIPT_FLAG  = "init-script";
 
 #if TELEMETRY_ENABLED == 1
-static const std::string_view TELEMETRY_ENDPOINT_FLAG = "telemetry-endpoint";
+static const std::string_view TELEMETRY_ENDPOINT_FLAG      = "telemetry-endpoint";
 static const std::string_view TELEMETRY_POLL_INTERVAL_FLAG = "telemetry-interval";
 
 static const uint32_t DEFAULT_TELEMETRY_POLL_INTERVAL = 250;
@@ -250,9 +250,12 @@ void flow_orchestrator_app::parse_args(int argc, char** argv) {
         INIT_SCRIPT_FLAG.data(), po::value< std::string >(), "Init script to load");
 
 #if TELEMETRY_ENABLED == 1
-    desc.add_options()(TELEMETRY_ENDPOINT_FLAG.data(), po::value<std::string>(), "Telemetry endpoint");
-    desc.add_options()(
-        TELEMETRY_POLL_INTERVAL_FLAG.data(), po::value<uint32_t>(), "Telemetry poll interval in milliseconds");
+    uint32_t telemetry_interval_arg = DEFAULT_TELEMETRY_POLL_INTERVAL;
+
+    desc.add_options()(TELEMETRY_ENDPOINT_FLAG.data(), po::value< std::string >(), "Telemetry endpoint");
+    desc.add_options()(TELEMETRY_POLL_INTERVAL_FLAG.data(),
+                       po::value< uint32_t >(&telemetry_interval_arg),
+                       "Telemetry poll interval in milliseconds");
 #endif
 
     po::positional_options_description p;
@@ -275,21 +278,23 @@ void flow_orchestrator_app::parse_args(int argc, char** argv) {
     }
 
 #if TELEMETRY_ENABLED == 1
-    if(vm.count(TELEMETRY_ENDPOINT_FLAG.data())) {
-        telemetry_addr = vm[TELEMETRY_ENDPOINT_FLAG.data()].as<std::string>();
+    if ( vm.count(TELEMETRY_ENDPOINT_FLAG.data()) ) {
+        telemetry_addr = vm[TELEMETRY_ENDPOINT_FLAG.data()].as< std::string >();
     } else {
         telemetry_addr = "tcp://127.0.0.1:8123";
     }
 
-    if(vm.count(TELEMETRY_POLL_INTERVAL_FLAG.data())) {
-        telemetry_poll_interval = std::chrono::milliseconds(vm[TELEMETRY_ENDPOINT_FLAG.data()].as<uint32_t>());
-    } else {
-        telemetry_poll_interval = std::chrono::milliseconds(DEFAULT_TELEMETRY_POLL_INTERVAL);
-    }
-#endif // TELEMETRY_ENABLED
+    //    if(vm.count(TELEMETRY_POLL_INTERVAL_FLAG.data())) {
+    //        telemetry_poll_interval = std::chrono::milliseconds(vm[TELEMETRY_ENDPOINT_FLAG.data()].as<unsigned
+    //        int>());
+    //    } else {
+    //        telemetry_poll_interval = std::chrono::milliseconds(DEFAULT_TELEMETRY_POLL_INTERVAL);
+    //    }
+    telemetry_poll_interval = std::chrono::milliseconds(telemetry_interval_arg);
+#endif  // TELEMETRY_ENABLED
 
-    if(vm.count(INIT_SCRIPT_FLAG.data())) {
-        init_script_name = vm[INIT_SCRIPT_FLAG.data()].as<std::string>();
+    if ( vm.count(INIT_SCRIPT_FLAG.data()) ) {
+        init_script_name = vm[INIT_SCRIPT_FLAG.data()].as< std::string >();
     }
 
     // Always add program name first
@@ -313,7 +318,6 @@ void flow_orchestrator_app::parse_args(int argc, char** argv) {
     cache_size    = 128;
     dataroom_size = RTE_MBUF_DEFAULT_BUF_SIZE;
     private_size  = align_to_next_multiple(sizeof(packet_private_info), (size_t) RTE_MBUF_PRIV_ALIGN);
-
 }
 
 
@@ -321,11 +325,11 @@ void flow_orchestrator_app::setup() {
     log(LOG_INFO, "Settings up devices and flows");
 
 #if TELEMETRY_ENABLED == 1
-    telemetry = std::make_unique<telemetry_distributor>(telemetry_addr);
+    telemetry = std::make_unique< telemetry_distributor >(telemetry_addr);
 #endif
 
-    //dpdk_options.push_back("--no-shconf");
-    //dpdk_options.push_back("--in-memory");
+    // dpdk_options.push_back("--no-shconf");
+    // dpdk_options.push_back("--in-memory");
 
     for ( const auto& interface_identifier : device_names ) {
         dev_info info;
@@ -358,8 +362,8 @@ void flow_orchestrator_app::setup() {
         dev_info_list.push_back(std::move(info));
     }
 
-    for(const auto& info : dev_info_list) {
-        if(info.dev_type_str.value() == "eth") {
+    for ( const auto& info : dev_info_list ) {
+        if ( info.dev_type_str.value() == "eth" ) {
             dpdk_options.push_back("-a");
             dpdk_options.push_back(info.dev_id_str.value());
         }
@@ -369,8 +373,12 @@ void flow_orchestrator_app::setup() {
 
     init_lcores();
 
-    log(LOG_INFO, "Creating packet memory pool: Capacity: {}, Cache Size: {}, Dataroom Size: {}, Private Size: {}",
-        pool_size, cache_size, dataroom_size, private_size);
+    log(LOG_INFO,
+        "Creating packet memory pool: Capacity: {}, Cache Size: {}, Dataroom Size: {}, Private Size: {}",
+        pool_size,
+        cache_size,
+        dataroom_size,
+        private_size);
 
 
     mempool = std::make_shared< dpdk_mempool >(pool_size, cache_size, dataroom_size, private_size);
@@ -386,24 +394,25 @@ void flow_orchestrator_app::init_lcores() {
 
     processing_lcores = lcore_info::get_available_worker_lcores();
 
-    if(processing_lcores.empty()) {
+    if ( processing_lcores.empty() ) {
         throw std::runtime_error("no processing lcores available");
     }
 
     log(LOG_INFO, "main lcore: {}", main_lcore.to_string());
 
-    for(const auto& lc : processing_lcores) {
+    for ( const auto& lc : processing_lcores ) {
         log(LOG_INFO, "processing lcore: {}", lc.to_string());
     }
 }
 
 void flow_orchestrator_app::load_flow_proc() {
-    if(!init_script_name.empty()) {
+    if ( !init_script_name.empty() ) {
         // Create endpoint instances
         std::vector< std::unique_ptr< flow_endpoint_base > > endpoints;
 
-        for(const auto& info : dev_info_list) {
-            endpoints.emplace_back(create_endpoint(info.dev_type_str.value(), info.dev_id_str.value(), info.dev_options_str.value_or("")));
+        for ( const auto& info : dev_info_list ) {
+            endpoints.emplace_back(
+                create_endpoint(info.dev_type_str.value(), info.dev_id_str.value(), info.dev_options_str.value_or("")));
         }
 
         init_script_handler init_handler;

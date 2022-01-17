@@ -12,6 +12,7 @@
 
 #include "flow_base.hpp"
 
+
 class eth_dpdk_endpoint : public flow_endpoint_base
 {
 public:
@@ -37,6 +38,17 @@ public:
      */
     std::unique_ptr< dpdk_ethdev > detach_eth_dev();
 
+#if TELEMETRY_ENABLED == 1
+    void init_telemetry(telemetry_distributor& telemetry) override {
+        telemetry.add_metric(metric_group);
+
+        metric_group.add_metric(tx_packets);
+        metric_group.add_metric(rx_packets);
+        metric_group.add_metric(tx_bytes);
+        metric_group.add_metric(rx_bytes);
+    }
+#endif
+
 protected:
     __inline dpdk_ethdev* get_ethdev() {
         return eth_dev.get();
@@ -44,4 +56,12 @@ protected:
 
 private:
     std::unique_ptr< dpdk_ethdev > eth_dev;
+
+#if TELEMETRY_ENABLED == 1
+    metric_group metric_group;
+    scalar_metric<uint64_t> tx_packets;
+    scalar_metric<uint64_t> rx_packets;
+    scalar_metric<uint64_t> tx_bytes;
+    scalar_metric<uint64_t> rx_bytes;
+#endif
 };

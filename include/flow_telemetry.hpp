@@ -10,7 +10,72 @@
 using json = nlohmann::json;
 
 
+class metric_base;
 class telemetry_distributor;
+
+
+enum class metric_op
+{
+    SET,
+    ADD,
+    INC
+};
+
+enum class metric_unit
+{
+    NONE,
+    PACKETS,
+    BITS,
+    BYTES,
+    NANOSECONDS, // For know define seperate units for nano,micro,milli,... seconds. Later think about a smarter way
+    MICROSECONDS,
+    MILLISECONDS,
+    SECONDS
+};
+
+template < class T, class U = void >
+struct metric_serializer
+{
+    static void convert(json& j, const T& value) {
+        j["type"] = "string";
+        j["value"] = fmt::to_string(value);
+    }
+};
+
+template <class T>
+struct metric_serializer<T, std::enable_if_t<std::is_integral_v<T>>>
+{
+    static void convert(json& j, const T& value) {
+        j["type"] = "integer";
+        j["value"] = value;
+    }
+};
+
+template <class T>
+struct metric_serializer<T, std::enable_if_t<std::is_floating_point_v<T>>>
+{
+    static void convert(json& j, const T& value) {
+        j["type"] = "number";
+        j["value"] = value;
+    }
+};
+
+template <class T>
+struct add_aggregator
+{
+    template < class TStorageAdapter, size_t N >
+    static T convert(std::array<TStorageAdapter, N>& per_lcore_data, TStorageAdapter& non_lcore_data) {
+        T result = (T)0;
+
+        for(auto& per_lcore_val : per_lcore_data) {
+            result += per_lcore_val.get();
+        }
+
+        result += non_lcore_data.get();
+
+        return result;
+    }
+};
 
 template < class T >
 struct atomic_storage_adapter
@@ -24,9 +89,18 @@ struct atomic_storage_adapter
         data.store(std::forward<TV>(new_value), std::memory_order_release);
     }
 
+    __inline void add(const T& v) {
+        data += v;
+    }
+
+    __inline void inc() {
+        ++data;
+    }
+
     __inline T get() const noexcept {
         return data.load(std::memory_order_acquire);
     }
+
 };
 
 template < class T >
@@ -41,16 +115,26 @@ struct trivial_storage_adapter
         data = std::forward<TV>(new_value);
     }
 
+    __inline void add(const T& v) {
+        data += v;
+    }
+
+    __inline void inc() {
+        ++data;
+    }
+
     __inline T get() const noexcept {
         return data;
     }
 };
 
+
+
 class metric_base : noncopyable
 {
 public:
 
-    explicit metric_base(std::string name) : name(std::move(name)), owning_distributor(nullptr) {
+    explicit metric_base(std::string name, metric_unit unit = metric_unit::NONE) : name(std::move(name)), unit(unit), owning_distributor(nullptr) {
 
     }
 
@@ -60,16 +144,22 @@ public:
         return name;
     }
 
+    metric_unit get_unit() const noexcept {
+        return unit;
+    }
+
+    static const char* get_unit_str(metric_unit unit);
 
 protected:
 
     void updated();
 
-    virtual void serialize(json& v) = 0;
+    virtual void serialize(json& v, const std::string& prefix) = 0;
 
 private:
 
     std::string name;
+    metric_unit unit;
 
     telemetry_distributor* owning_distributor;
 
@@ -77,7 +167,7 @@ private:
     friend class metric_group;
 };
 
-template < class T, class TStorageAdapter = atomic_storage_adapter<T> >
+template < class T, class TStorageAdapter = atomic_storage_adapter<T>, class TSerializer = metric_serializer<T> >
 class scalar_metric : public metric_base
 {
 public:
@@ -85,17 +175,25 @@ public:
 
     using storage_adapter = TStorageAdapter;
 
-    explicit scalar_metric(std::string name) :
-        metric_base(std::move(name)),
+    using serializer = TSerializer;
+
+    explicit scalar_metric(std::string name, metric_unit unit = metric_unit::NONE) :
+        metric_base(std::move(name), unit),
         value() {
 
     }
 
     template < class TV >
-    void set(TV&& new_value) {
+    __inline void set(TV&& new_value) {
         value.set(std::forward<TV>(new_value));
+    }
 
-        updated();
+    __inline void add(const T& v) {
+        value.add(v);
+    }
+
+    __inline void inc() {
+        value.inc();
     }
 
     value_type get() const noexcept {
@@ -104,14 +202,19 @@ public:
 
 private:
 
-    void serialize(json& v) override {
-        v = get();
+    void serialize(json& v, const std::string& prefix) override {
+        json value_obj;
+
+        serializer::convert(value_obj, get());
+
+        v.push_back({{"label", prefix}, {"value", std::move(value_obj)}, {"unit", metric_base::get_unit_str(get_unit())}});
+
     }
 
     storage_adapter value;
 };
 
-template < class T, class TStorageAdapter = trivial_storage_adapter<T> >
+template < class T, class TStorageAdapter = trivial_storage_adapter<T>, class TSerializer = metric_serializer<T>, class TAggregator = add_aggregator<T> >
 class per_lcore_metric : public metric_base
 {
 public:
@@ -119,9 +222,18 @@ public:
 
     using storage_adapter = TStorageAdapter;
 
-    explicit per_lcore_metric(std::string name) :
-        metric_base(std::move(name)) {
+    using serializer = TSerializer;
 
+    using aggregator = TAggregator;
+
+    explicit per_lcore_metric(std::string name, metric_unit unit = metric_unit::NONE) :
+        metric_base(std::move(name), unit) {
+
+        for(auto& v : per_lcore_data) {
+            v.set((T)0);
+        }
+
+        non_lcore_data.set((T)0);
     }
 
     ~per_lcore_metric() override = default;
@@ -130,13 +242,33 @@ public:
 
 
     template < class TV >
-    void set(TV&& new_value) {
+    __inline void set(TV&& new_value) {
         auto lid = rte_lcore_id();
 
         if( lid == LCORE_ID_ANY ) {
             non_lcore_data.set(std::forward<TV>(new_value));
         } else {
             per_lcore_data[lid].set(std::forward<TV>(new_value));
+        }
+    }
+
+    __inline void add(const T& v) {
+        auto lid = rte_lcore_id();
+
+        if( lid == LCORE_ID_ANY ) {
+            non_lcore_data.add(v);
+        } else {
+            per_lcore_data[lid].add(v);
+        }
+    }
+
+    __inline void inc() {
+        auto lid = rte_lcore_id();
+
+        if( lid == LCORE_ID_ANY ) {
+            non_lcore_data.inc();
+        } else {
+            per_lcore_data[lid].inc();
         }
     }
 
@@ -160,14 +292,13 @@ public:
     }
 
 private:
-    void serialize(json& v) override {
-        v = json::array();
+    void serialize(json& v, const std::string& prefix) override {
 
-        v.push_back(get(LCORE_ID_ANY));
+        json value_obj;
 
-        for(auto& d : per_lcore_data) {
-            v.push_back(d.get());
-        }
+        serializer::convert(value_obj, aggregator::convert(per_lcore_data, non_lcore_data));
+
+        v.push_back({{"label", prefix}, {"value", std::move(value_obj)}, {"unit", metric_base::get_unit_str(get_unit())}});
     }
 
     std::array<storage_adapter, RTE_MAX_LCORE> per_lcore_data;
@@ -188,7 +319,7 @@ public:
 
     void remove_metric(metric_base& m);
 
-     void serialize(json& v) override;
+     void serialize(json& v, const std::string& prefix) override;
 
 private:
     std::mutex lk;
