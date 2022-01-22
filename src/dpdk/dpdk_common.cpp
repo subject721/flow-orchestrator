@@ -12,10 +12,24 @@
 #include <rte_debug.h>
 #include <rte_cycles.h>
 #include <rte_errno.h>
-
+#include <rte_malloc.h>
 
 using namespace std;
 
+void mempool_deleter::operator()(rte_mempool* mempool) {
+        if ( !mempool )
+            return;
+
+        rte_mempool_free(mempool);
+    }
+
+void dpdk_malloc_deleter::operator()(void* ptr) {
+    rte_free(ptr);
+}
+
+void dpdk_memzone_deleter::operator()(const rte_memzone* memzone) {
+    rte_memzone_free(memzone);
+}
 
 std::string lcore_info::to_string() const {
     return fmt::format("{}/{}", get_socket_id(), get_lcore_id());
@@ -89,7 +103,7 @@ void lcore_thread::try_launch() {
     }
 }
 
-dpdk_mempool::dpdk_mempool(uint32_t num_elements, uint16_t cache_size, uint16_t data_size, uint16_t private_size) {
+dpdk_packet_mempool::dpdk_packet_mempool(uint32_t num_elements, uint16_t cache_size, uint16_t data_size, uint16_t private_size) {
     rte_mempool* new_pool_ptr =
         rte_pktmbuf_pool_create("my_pkt_pool", num_elements, cache_size, private_size, data_size, 0);
 
@@ -101,19 +115,19 @@ dpdk_mempool::dpdk_mempool(uint32_t num_elements, uint16_t cache_size, uint16_t 
     mempool = std::unique_ptr< rte_mempool, mempool_deleter >(new_pool_ptr);
 }
 
-uint32_t dpdk_mempool::get_capacity() {
+uint32_t dpdk_packet_mempool::get_capacity() {
     return mempool->size;
 }
 
-uint32_t dpdk_mempool::get_num_allocated() {
+uint32_t dpdk_packet_mempool::get_num_allocated() {
     return rte_mempool_in_use_count(mempool.get());
 }
 
-int dpdk_mempool::bulk_alloc(rte_mbuf** mbufs, uint16_t count) {
+int dpdk_packet_mempool::bulk_alloc(rte_mbuf** mbufs, uint16_t count) {
     return rte_pktmbuf_alloc_bulk(mempool.get(), mbufs, count);
 }
 
-int dpdk_mempool::bulk_alloc(mbuf_vec_base& mbuf_vec, uint16_t count) {
+int dpdk_packet_mempool::bulk_alloc(mbuf_vec_base& mbuf_vec, uint16_t count) {
     if ( count > mbuf_vec.num_free_tail() ) {
         count = mbuf_vec.num_free_tail();
     }
@@ -127,7 +141,7 @@ int dpdk_mempool::bulk_alloc(mbuf_vec_base& mbuf_vec, uint16_t count) {
     return rc;
 }
 
-void dpdk_mempool::bulk_free(rte_mbuf** mbufs, uint16_t count) {
+void dpdk_packet_mempool::bulk_free(rte_mbuf** mbufs, uint16_t count) {
     for ( uint16_t index = 0; index < count; ++index ) {
         rte_pktmbuf_free(mbufs[index]);
     }

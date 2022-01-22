@@ -90,19 +90,24 @@ private:
 
 struct mempool_deleter
 {
-    void operator()(rte_mempool* mempool) {
-        if ( !mempool )
-            return;
+    void operator()(rte_mempool* mempool);
+};
 
-        rte_mempool_free(mempool);
-    }
+struct dpdk_malloc_deleter
+{
+    void operator()(void* ptr);
+};
+
+struct dpdk_memzone_deleter
+{
+    void operator()(const rte_memzone* memzone);
 };
 
 
-class dpdk_mempool : noncopyable
+class dpdk_packet_mempool : noncopyable
 {
 public:
-    dpdk_mempool(uint32_t num_elements, uint16_t cache_size, uint16_t data_size, uint16_t private_size);
+    dpdk_packet_mempool(uint32_t num_elements, uint16_t cache_size, uint16_t data_size, uint16_t private_size);
 
     uint32_t get_capacity();
 
@@ -145,6 +150,10 @@ public:
         return tail_offset - head_offset;
     }
 
+    __always_inline uint16_t num_free_front() const noexcept {
+        return head_offset;
+    }
+
     __always_inline uint16_t num_free_tail() const noexcept {
         return max_num_mbufs - tail_offset;
     }
@@ -154,7 +163,7 @@ public:
     }
 
     __inline void free() noexcept {
-        dpdk_mempool::bulk_free(begin(), size());
+        dpdk_packet_mempool::bulk_free(begin(), size());
 
         head_offset = 0;
         tail_offset = 0;
@@ -174,7 +183,7 @@ public:
             num = size();
         }
 
-        dpdk_mempool::bulk_free(begin(), num);
+        dpdk_packet_mempool::bulk_free(begin(), num);
 
         head_offset += num;
     }
@@ -200,7 +209,7 @@ public:
 
         tail_offset -= num;
 
-        dpdk_mempool::bulk_free(mbufs + tail_offset, num);
+        dpdk_packet_mempool::bulk_free(mbufs + tail_offset, num);
     }
 
     __inline void consume_back(uint16_t num) noexcept {
@@ -358,7 +367,7 @@ struct rte_ring_deleter
             rte_mbuf* mbuf = nullptr;
 
             if ( !rte_ring_dequeue(ring_ptr, (void**) &mbuf) ) {
-                dpdk_mempool::bulk_free(&mbuf, 1U);
+                dpdk_packet_mempool::bulk_free(&mbuf, 1U);
             }
         }
 
@@ -384,14 +393,16 @@ public:
     __inline uint16_t enqueue(mbuf_vec_base& mbuf_vec) {
         uint16_t num = mbuf_vec.size();
 
-        if ( num > rte_ring_free_count(ring.get()) ) {
-            num = rte_ring_free_count(ring.get());
+        uint16_t num_free = rte_ring_free_count(ring.get());
+
+        if ( num > num_free ) {
+            num = num_free;
         }
 
         auto rc = (uint16_t) rte_ring_enqueue_bulk(
             ring.get(), reinterpret_cast< void* const* >(mbuf_vec.begin()), num, nullptr);
 
-        mbuf_vec.consume_front(num);
+        mbuf_vec.consume_front(rc);
 
         return rc;
     }
@@ -403,8 +414,10 @@ public:
     __inline uint16_t dequeue(mbuf_vec_base& mbuf_vec) {
         uint16_t num = mbuf_vec.num_free_tail();
 
-        if ( num > rte_ring_count(ring.get()) ) {
-            num = rte_ring_count(ring.get());
+        uint16_t num_avail = rte_ring_count(ring.get());
+
+        if ( num > num_avail ) {
+            num = num_avail;
         }
 
         auto rc =

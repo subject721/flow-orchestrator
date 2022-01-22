@@ -45,7 +45,7 @@ public:
                          uint16_t                        num_tx_descriptors,
                          uint16_t                        num_rx_queues,
                          uint16_t                        num_tx_queues,
-                         std::shared_ptr< dpdk_mempool > mempool);
+                         std::shared_ptr< dpdk_packet_mempool > mempool);
 
     ~dpdk_ethdev();
 
@@ -70,7 +70,7 @@ public:
 private:
     uint64_t port_id;
 
-    std::shared_ptr< dpdk_mempool > mempool;
+    std::shared_ptr< dpdk_packet_mempool > mempool;
 
     rte_eth_dev_info local_dev_info;
 

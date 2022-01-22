@@ -42,7 +42,7 @@ private:
 class flow_processor : public flow_node_base
 {
 public:
-    flow_processor(std::string name, std::shared_ptr< dpdk_mempool > mempool);
+    flow_processor(std::string name, std::shared_ptr< dpdk_packet_mempool > mempool);
 
     ~flow_processor() override = default;
 
@@ -56,7 +56,7 @@ private:
 class ingress_packet_validator : public flow_processor
 {
 public:
-    ingress_packet_validator(std::string name, std::shared_ptr< dpdk_mempool > mempool, std::shared_ptr< flow_database > flow_database_ptr);
+    ingress_packet_validator(std::string name, std::shared_ptr< dpdk_packet_mempool > mempool, std::shared_ptr< flow_database > flow_database_ptr);
 
     ~ingress_packet_validator() override = default;
 
@@ -72,7 +72,7 @@ class flow_classifier : public flow_processor
 {
 public:
     flow_classifier(std::string                      name,
-                    std::shared_ptr< dpdk_mempool >  mempool,
+                    std::shared_ptr< dpdk_packet_mempool >  mempool,
                     std::shared_ptr< flow_database > flow_database_ptr);
 
     ~flow_classifier() override = default;
@@ -83,7 +83,22 @@ private:
     std::shared_ptr< flow_database > flow_database_ptr;
 };
 
+class lua_packet_filter : public flow_processor
+{
+public:
+    lua_packet_filter(std::string                      name,
+                    std::shared_ptr< dpdk_packet_mempool >  mempool,
+                    std::shared_ptr< flow_database > flow_database_ptr);
+
+    ~lua_packet_filter() override = default;
+
+    uint16_t process(mbuf_vec_base& mbuf_vec, flow_proc_context& ctx) override;
+
+private:
+    std::shared_ptr< flow_database > flow_database_ptr;
+};
+
 std::unique_ptr< flow_processor > create_flow_processor(const std::string&                     class_name,
                                                         const std::string&                     instance_name,
-                                                        const std::shared_ptr< dpdk_mempool >& mempool,
+                                                        const std::shared_ptr< dpdk_packet_mempool >& mempool,
                                                         const std::shared_ptr< flow_database >& flow_database);

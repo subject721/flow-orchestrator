@@ -65,7 +65,7 @@ int main(int argc, char** argv) {
     try {
         mbuf_ring ring("my_ring", 0, 512);
 
-        dpdk_mempool mempool(512, 0, 1024, 32);
+        dpdk_packet_mempool mempool(512, 0, 1024, 32);
 
         static_mbuf_vec< 32 > mbuf_vec;
 

@@ -35,19 +35,25 @@ void flow_distributor::push_packets(uint16_t src_port_id, uint16_t queue_id, mbu
         auto* packet_info = reinterpret_cast< packet_private_info* >(rte_mbuf_to_priv(current_mbuf));
 
         if ( packet_info->dst_endpoint_id == PORT_ID_BROADCAST) {
+
             for ( size_t port_id = 0; port_id < num_active_ports; ++port_id ) {
 
                 if(port_id == packet_info->src_endpoint_id)
                     continue;
 
-                rte_mbuf_refcnt_update(current_mbuf, 1);
+                // A nice example of "how to make things slow". But it's the broadcast case and I don't really care for now.
+                struct rte_mbuf* cloned_packet = rte_pktmbuf_clone(current_mbuf, current_mbuf->pool);
 
-                size_t ridx = (port_id * num_queues) + queue_id;
+                if (likely(cloned_packet)) {
+                    size_t ridx = (port_id * num_queues) + queue_id;
 
-                if ( !rings[ridx].enqueue_single(current_mbuf) ) {
-                    rte_pktmbuf_free(current_mbuf);
+                    if ( !rings[ridx].enqueue_single(cloned_packet) ) {
+                        rte_pktmbuf_free(cloned_packet);
+                    }
                 }
             }
+
+            rte_pktmbuf_free(current_mbuf);
         } else {
 
             size_t ridx = (packet_info->dst_endpoint_id * num_queues) + queue_id;
@@ -73,19 +79,18 @@ struct flow_manager::private_data
     explicit private_data(uint16_t num_queues) : active(false), distributor(MAX_NUM_FLOWS, num_queues, 128)
 #if TELEMETRY_ENABLED == 1
     ,flow_metric_grp("flows")
-    ,
-        m_total_packets("total_packets", metric_unit::PACKETS)
+    ,m_total_packets("total_packets", metric_unit::PACKETS)
+    ,m_total_executions("total_executions", metric_unit::NONE)
 
     {
                 flow_metric_grp.add_metric(m_total_packets);
+                flow_metric_grp.add_metric(m_total_executions);
             }
 #else
     {}
 #endif
 
     std::atomic_bool active;
-
-    std::shared_ptr<flow_database> flow_database;
 
     flow_distributor distributor;
 
@@ -96,10 +101,15 @@ struct flow_manager::private_data
 
     std::unique_ptr<flow_executor_base<flow_manager>> executor;
 
+    std::shared_ptr<flow_database> flow_database_ptr;
+
 #if TELEMETRY_ENABLED == 1
     metric_group flow_metric_grp;
 
     per_lcore_metric<uint64_t> m_total_packets;
+
+    // XXX: Test
+    scalar_metric<uint64_t> m_total_executions;
 #endif
 };
 
@@ -122,7 +132,7 @@ void flow_manager::load(flow_program prog) {
 
     pdata = std::make_unique<private_data>(1);
 
-    pdata->flow_database = prog.get_flow_database();
+    pdata->flow_database_ptr = prog.get_flow_database();
 
     size_t index = 0;
 
@@ -144,6 +154,7 @@ void flow_manager::load(flow_program prog) {
         auto chain_names = pdata->rx_proc_flows[index]->get_chain_names();
 
         log(LOG_INFO, "Loaded processing chain for endpoint {}: ", pdata->proc_endpoints[index]->get_name());
+
         for(const auto& name : chain_names) {
             log(LOG_INFO, "proc : {}", name);
         }
@@ -223,9 +234,11 @@ void flow_manager::endpoint_work_callback(const size_t* endpoint_ids, size_t num
 
     static_mbuf_vec<BURST_SIZE> mbuf_vec;
 
-    //auto lcore_id = rte_lcore_id();
+    auto lcore_id = rte_lcore_id();
 
     flow_proc_context ctx(flow_dir::RX, 0);
+
+    p->flow_database_ptr->set_lcore_active(lcore_id);
 
     while(run_state.load()) {
 
@@ -243,7 +256,9 @@ void flow_manager::endpoint_work_callback(const size_t* endpoint_ids, size_t num
 
             ep->rx_burst(mbuf_vec);
 
-            // log(LOG_INFO, "lcore{} : pulled {} packets from endpoint {}", lcore_id, num_bufs, ep_id);
+//            if(mbuf_vec.size()) {
+//                log(LOG_DEBUG, "lcore{} : pulled {} packets from endpoint {}", rte_lcore_id(), mbuf_vec.size(), ep_id);
+//            }
 
             p->rx_proc_flows[ep_id]->process(mbuf_vec, ctx);
 
@@ -256,8 +271,12 @@ void flow_manager::endpoint_work_callback(const size_t* endpoint_ids, size_t num
             log(LOG_WARN, "mbuf_vec has size != 0 after endpoint handling!");
         }
 
-        // rte_delay_ms(100);
+        p->flow_database_ptr->flow_purge_checkpoint(lcore_id);
+
+        //rte_delay_ms(100);
     }
+
+    p->flow_database_ptr->set_lcore_inactive(lcore_id);
 }
 
 void flow_manager::distributor_work_callback(const size_t* distributor_ids, size_t num_distributor_ids, std::atomic_bool& run_state) {
@@ -265,9 +284,11 @@ void flow_manager::distributor_work_callback(const size_t* distributor_ids, size
 
     static_mbuf_vec<BURST_SIZE> mbuf_vec;
 
-    //auto lcore_id = rte_lcore_id();
+    auto lcore_id = rte_lcore_id();
 
     //flow_proc_context ctx(flow_dir::TX, 0);
+
+    p->flow_database_ptr->set_lcore_active(lcore_id);
 
     while(run_state.load()) {
 
@@ -283,6 +304,8 @@ void flow_manager::distributor_work_callback(const size_t* distributor_ids, size
 
 #if TELEMETRY_ENABLED == 1
             p->m_total_packets.add(num_pulled_bufs);
+
+            p->m_total_executions.inc();
 #endif
             // log(LOG_INFO, "lcore{} : transmitting {} packets on endpoint {}", lcore_id, num_pulled_bufs, index);
 
@@ -291,7 +314,11 @@ void flow_manager::distributor_work_callback(const size_t* distributor_ids, size
             // This will free all remaining mbufs if there are any
             mbuf_vec.free();
         }
+
+        p->flow_database_ptr->flow_purge_checkpoint(lcore_id);
     }
+
+    p->flow_database_ptr->set_lcore_inactive(lcore_id);
 
     //rte_delay_ms(100);
 }

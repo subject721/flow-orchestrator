@@ -41,6 +41,9 @@ struct flow_info_ipv4
 
     uint8_t ipv4_proto;
 
+    uint64_t counter;
+
+    uint64_t last_used;
 
     uint64_t mark;
 
@@ -58,6 +61,7 @@ struct packet_private_info
     // non-null if packet belongs to known flow
     flow_info_ipv4* flow_info;
 
+    bool new_flow;
 
     uint16_t src_endpoint_id;
     uint16_t dst_endpoint_id;
@@ -75,6 +79,7 @@ struct packet_private_info
     uint16_t ipv4_len;
 
     bool is_fragment;
+
 };
 
 // NOTE: It is blatantly assumed the host endianness is always little-endian.

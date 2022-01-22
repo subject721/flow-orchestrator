@@ -107,7 +107,7 @@ private:
 
     std::vector< dev_info > dev_info_list;
 
-    std::shared_ptr< dpdk_mempool > mempool;
+    std::shared_ptr< dpdk_packet_mempool > mempool;
 
     std::vector< lcore_info > processing_lcores;
 
@@ -151,6 +151,8 @@ int main(int argc, char** argv) {
 
     try {
         rte_openlog_stream(log_proxy::get_cfile());
+
+        rte_log_set_global_level(RTE_LOG_DEBUG);
 
         flow_orchestrator_app app(argc, argv);
 
@@ -228,6 +230,8 @@ int flow_orchestrator_app::run() {
 static const std::string_view DPDK_OPTIONS_FLAG = "dpdk-options";
 static const std::string_view DEVICES_FLAG      = "devices";
 static const std::string_view INIT_SCRIPT_FLAG  = "init-script";
+
+static const size_t DEFAULT_FLOW_TABLE_SIZE = (1 << 14);
 
 #if TELEMETRY_ENABLED == 1
 static const std::string_view TELEMETRY_ENDPOINT_FLAG      = "telemetry-endpoint";
@@ -381,7 +385,7 @@ void flow_orchestrator_app::setup() {
         private_size);
 
 
-    mempool = std::make_shared< dpdk_mempool >(pool_size, cache_size, dataroom_size, private_size);
+    mempool = std::make_shared< dpdk_packet_mempool >(pool_size, cache_size, dataroom_size, private_size);
 
 
     load_flow_proc();
@@ -421,7 +425,9 @@ void flow_orchestrator_app::load_flow_proc() {
 
         init_handler.load_init_script(init_script_name);
 
-        auto flow_program = init_handler.build_program(std::move(endpoints));
+        std::shared_ptr<flow_database> fdatabase = std::make_shared<flow_database>(DEFAULT_FLOW_TABLE_SIZE, processing_lcores);
+
+        auto flow_program = init_handler.build_program(std::move(endpoints), fdatabase);
 
         flow_mgr.load(std::move(flow_program));
 

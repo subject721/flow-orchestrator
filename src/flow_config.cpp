@@ -8,13 +8,14 @@
 #include <common/file_utils.hpp>
 
 
-
-
-flow_init_proc& flow_init_proc::param(const std::string& key, const std::string& value) {
-
+void flow_init_proc::set_param(const std::string& key, const std::string& value) {
     params[key] = value;
+}
 
-    return *this;
+std::optional< std::string > flow_init_proc::get_param(const std::string& key) const {
+    auto it = params.find(key);
+
+    return (it != params.end()) ? it->second : std::optional< std::string > {};
 }
 
 std::shared_ptr< flow_init_proc > flow_init_proc::next(std::shared_ptr< flow_init_proc > p) {
@@ -85,6 +86,8 @@ private:
         ut_proc["name"]                        = &flow_init_node::name;
         ut_proc[sol::meta_function::to_string] = &flow_init_node::name;
         ut_proc["next"]                        = &flow_init_proc::next;
+        ut_proc["set_param"]                   = &flow_init_proc::set_param;
+        ut_proc["get_param"]                   = &flow_init_proc::get_param;
 
         set_function< std::shared_ptr< flow_init_proc > >(
             "proc", std::function< std::shared_ptr< flow_init_proc >(const std::string&) >([](const std::string& name) {
@@ -122,7 +125,8 @@ void init_script_handler::load_init_script(const std::string& filename) {
 }
 
 flow_program init_script_handler::build_program(
-    std::vector< std::unique_ptr< flow_endpoint_base > > available_endpoints) {
+    std::vector< std::unique_ptr< flow_endpoint_base > > available_endpoints,
+    const std::shared_ptr< flow_database >&              flow_database) {
 
     try {
         flow_creation_lua_extension flow_ext(*this);
@@ -138,32 +142,26 @@ flow_program init_script_handler::build_program(
 
         lua.call< void >("init", endpoint_list);
 
-        flow_program prog(program_name);
+        flow_program prog(program_name, flow_database);
 
         for ( size_t endpoint_idx = 0; endpoint_idx < available_endpoints.size(); ++endpoint_idx ) {
             const auto& ep = endpoint_list[endpoint_idx];
 
-            std::shared_ptr< dpdk_mempool > current_mempool = available_endpoints[endpoint_idx]->get_mempool_shared();
+            std::shared_ptr< dpdk_packet_mempool > current_mempool = available_endpoints[endpoint_idx]->get_mempool_shared();
 
             std::shared_ptr< flow_init_proc > current = ep->get_first_rx_proc();
 
             auto& flow = prog.add_flow(fmt::format("flow-{}", ep->get_port_num()));
 
-            if(current) {
+            if ( current ) {
 
                 std::string s;
 
-                handle_flow(flow,
-                            *available_endpoints[endpoint_idx],
-                            prog.get_flow_database(),
-                            ep->get_first_rx_proc(),
-                            flow_dir::RX);
+                handle_flow(
+                    flow, *available_endpoints[endpoint_idx], flow_database, ep->get_first_rx_proc(), flow_dir::RX);
 
-                handle_flow(flow,
-                            *available_endpoints[endpoint_idx],
-                            prog.get_flow_database(),
-                            ep->get_first_tx_proc(),
-                            flow_dir::TX);
+                handle_flow(
+                    flow, *available_endpoints[endpoint_idx], flow_database, ep->get_first_tx_proc(), flow_dir::TX);
             } else {
                 log(LOG_INFO, "Flow for endpoint {} is empty", ep->name());
             }
@@ -186,7 +184,7 @@ void init_script_handler::handle_flow(flow_config&                      flow,
                                       flow_dir                          dir) {
     std::shared_ptr< flow_init_proc > current = std::move(proc_info);
 
-    std::shared_ptr< dpdk_mempool > current_mempool = endpoint.get_mempool_shared();
+    std::shared_ptr< dpdk_packet_mempool > current_mempool = endpoint.get_mempool_shared();
 
     std::string s;
 
@@ -215,4 +213,3 @@ void init_script_handler::cb_set_config_var(const std::string& name, const std::
 std::string init_script_handler::cb_get_config_var(const std::string& name) const {
     return {};
 }
-

@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <rte_rcu_qsbr.h>
 #include "common/common.hpp"
 #include "common/network_utils.hpp"
 #include "dpdk/dpdk_common.hpp"
@@ -40,10 +41,14 @@ enum class ExecutionPolicyType
     REDUCED_CORE_COUNT_POLICY
 };
 
+static __always_inline packet_private_info* get_private_packet_info(rte_mbuf* mbuf) {
+    return reinterpret_cast< packet_private_info* >(rte_mbuf_to_priv(mbuf));
+}
+
 class flow_node_base : noncopyable
 {
 public:
-    flow_node_base(std::string name, std::shared_ptr< dpdk_mempool > mempool);
+    flow_node_base(std::string name, std::shared_ptr< dpdk_packet_mempool > mempool);
 
     flow_node_base(flow_node_base&& other) noexcept;
 
@@ -51,25 +56,25 @@ public:
 
     const std::string& get_name() const noexcept;
 
-    std::shared_ptr<dpdk_mempool> get_mempool_shared() const {
+    std::shared_ptr< dpdk_packet_mempool > get_mempool_shared() const {
         return mempool;
     }
 
 protected:
-    __inline dpdk_mempool* get_mempool() {
+    __inline dpdk_packet_mempool* get_mempool() {
         return mempool.get();
     }
 
 private:
     std::string name;
 
-    std::shared_ptr< dpdk_mempool > mempool;
+    std::shared_ptr< dpdk_packet_mempool > mempool;
 };
 
 class flow_endpoint_base : public flow_node_base
 {
 public:
-    flow_endpoint_base(std::string name, int port_num, std::shared_ptr< dpdk_mempool > mempool);
+    flow_endpoint_base(std::string name, int port_num, std::shared_ptr< dpdk_packet_mempool > mempool);
 
     ~flow_endpoint_base() override = default;
 
@@ -95,17 +100,42 @@ private:
     int port_num;
 };
 
+
+
 class flow_database : noncopyable
 {
 public:
-    flow_database(size_t max_entries);
+    flow_database(size_t max_entries, std::vector<lcore_info> write_allowed_lcores);
 
     ~flow_database();
 
     bool lookup(flow_hash hash);
 
+    flow_info_ipv4* get_or_create(flow_hash fhash, bool& created);
+
+    void flow_purge_checkpoint(unsigned int lcore_id);
+
+    void set_lcore_active(unsigned int lcore_id);
+
+    void set_lcore_inactive(unsigned int lcore_id);
 
 private:
+    using lcore_table_state_t = std::array<uint32_t, RTE_MAX_LCORE>;
+
+    size_t max_entries;
+
+    std::vector<lcore_info> write_allowed_lcores;
+
+    lcore_table_state_t lcore_state;
+
+    std::unique_ptr<rte_mempool, mempool_deleter> mempool;
+
+    std::unique_ptr<rte_rcu_qsbr, dpdk_malloc_deleter> rcu_state;
+
+    size_t flow_table_memsize;
+
+    std::unique_ptr<const rte_memzone, dpdk_memzone_deleter> table_memory;
+
 };
 
 template < class TFlowManager >

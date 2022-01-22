@@ -17,7 +17,6 @@
 #include <map>
 
 
-
 struct dev_info
 {
     std::optional< std::string > dev_type_str;
@@ -57,7 +56,9 @@ public:
 
     flow_init_proc(const std::string& name) : flow_init_node(name) {}
 
-    flow_init_proc& param(const std::string& key, const std::string& value);
+    void set_param(const std::string& key, const std::string& value);
+
+    std::optional< std::string > get_param(const std::string& key) const;
 
     std::shared_ptr< flow_init_proc > next(std::shared_ptr< flow_init_proc > p);
 
@@ -98,9 +99,6 @@ private:
 
     int port_num;
 };
-
-
-
 
 
 class flow_config
@@ -166,7 +164,7 @@ template < flow_dir DIR >
 struct flow_proc_iterator;
 
 template <>
-struct flow_proc_iterator<flow_dir::RX>
+struct flow_proc_iterator< flow_dir::RX >
 {
     flow_proc_iterator(flow_config& cfg) : cfg(cfg) {}
 
@@ -182,7 +180,7 @@ struct flow_proc_iterator<flow_dir::RX>
 };
 
 template <>
-struct flow_proc_iterator<flow_dir::TX>
+struct flow_proc_iterator< flow_dir::TX >
 {
     flow_proc_iterator(flow_config& cfg) : cfg(cfg) {}
 
@@ -203,7 +201,8 @@ public:
     using flow_cfg_iterator       = std::list< flow_config >::iterator;
     using flow_cfg_const_iterator = std::list< flow_config >::const_iterator;
 
-    explicit flow_program(std::string program_name) : program_name(std::move(program_name)) {}
+    explicit flow_program(std::string program_name, std::shared_ptr< flow_database > flow_database_ptr) :
+        program_name(std::move(program_name)), flow_database_ptr(std::move(flow_database_ptr)) {}
 
     const std::string& get_name() const noexcept {
         return program_name;
@@ -228,7 +227,7 @@ public:
     }
 
     std::shared_ptr<flow_database> get_flow_database() const {
-        return flow_database;
+        return flow_database_ptr;
     }
 
 private:
@@ -236,7 +235,7 @@ private:
 
     std::list< flow_config > flow_configs;
 
-    std::shared_ptr<flow_database> flow_database;
+    std::shared_ptr< flow_database > flow_database_ptr;
 };
 
 class init_script_handler : noncopyable
@@ -246,11 +245,15 @@ public:
 
     void load_init_script(const std::string& filename);
 
-    flow_program build_program(std::vector< std::unique_ptr< flow_endpoint_base > > available_endpoints);
+    flow_program build_program(std::vector< std::unique_ptr< flow_endpoint_base > > available_endpoints,
+                               const std::shared_ptr< flow_database >&              flow_database);
 
 private:
-
-    void handle_flow(flow_config& flow, flow_endpoint_base& endpoint, std::shared_ptr<flow_database> flow_database, std::shared_ptr<flow_init_proc> proc_info, flow_dir dir);
+    void handle_flow(flow_config&                      flow,
+                     flow_endpoint_base&               endpoint,
+                     std::shared_ptr< flow_database >  flow_database,
+                     std::shared_ptr< flow_init_proc > proc_info,
+                     flow_dir                          dir);
 
     void cb_set_config_var(const std::string& name, const std::string& value);
 

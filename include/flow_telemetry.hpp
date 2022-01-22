@@ -90,7 +90,7 @@ struct atomic_storage_adapter
     }
 
     __inline void add(const T& v) {
-        data += v;
+        atomic_fetch_add(&data, v);
     }
 
     __inline void inc() {

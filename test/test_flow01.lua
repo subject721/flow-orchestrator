@@ -10,8 +10,16 @@ function init(endpoints)
 
         logf(INFO, "Creating flow for endpoint %s", endpoint:name())
 
-        endpoint:add_rx_proc(flow.proc("ingress_packet_validator"))
+        local packet_validator = flow.proc("ingress_packet_validator")
+        local flow_classifier = flow.proc("flow_classifier")
+
+        flow_classifier:set_param("test", "value")
+
+        packet_validator:next(flow_classifier)
+
+        endpoint:add_rx_proc(packet_validator)
     end
+
 
     log(INFO, "Init done")
 end

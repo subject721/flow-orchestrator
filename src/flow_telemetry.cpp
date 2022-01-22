@@ -151,6 +151,8 @@ void telemetry_distributor::do_update() {
 
     msg_obj["values"] = std::move(values);
 
+    //log(LOG_INFO, "metric data: \n{}", msg_obj.dump(2));
+
     pdata->socket->send(zmq::buffer("metrics"), zmq::send_flags::sndmore);
     pdata->socket->send(zmq::buffer(msg_obj.dump()), zmq::send_flags::none);
 }
