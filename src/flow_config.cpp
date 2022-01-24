@@ -8,30 +8,30 @@
 #include <common/file_utils.hpp>
 
 
-void flow_init_proc::set_param(const std::string& key, const std::string& value) {
+void flow_proc_builder::set_param(const std::string& key, const std::string& value) {
     params[key] = value;
 }
 
-std::optional< std::string > flow_init_proc::get_param(const std::string& key) const {
+std::optional< std::string > flow_proc_builder::get_param(const std::string& key) const {
     auto it = params.find(key);
 
     return (it != params.end()) ? it->second : std::optional< std::string > {};
 }
 
-std::shared_ptr< flow_init_proc > flow_init_proc::next(std::shared_ptr< flow_init_proc > p) {
+std::shared_ptr< flow_proc_builder > flow_proc_builder::next(std::shared_ptr< flow_proc_builder > p) {
     next_proc = std::move(p);
 
     return next_proc;
 }
 
 
-std::shared_ptr< flow_init_proc > flow_init_endpoint::add_rx_proc(std::shared_ptr< flow_init_proc > p) {
+std::shared_ptr< flow_proc_builder > flow_endpoint_builder::add_rx_proc(std::shared_ptr< flow_proc_builder > p) {
     if ( !first_rx_proc ) {
         first_rx_proc = std::move(p);
 
         return first_rx_proc;
     } else {
-        std::shared_ptr< flow_init_proc > current = first_rx_proc;
+        std::shared_ptr< flow_proc_builder > current = first_rx_proc;
 
         while ( current->get_next_proc() ) {
             current = current->get_next_proc();
@@ -41,13 +41,13 @@ std::shared_ptr< flow_init_proc > flow_init_endpoint::add_rx_proc(std::shared_pt
     }
 }
 
-std::shared_ptr< flow_init_proc > flow_init_endpoint::add_tx_proc(std::shared_ptr< flow_init_proc > p) {
+std::shared_ptr< flow_proc_builder > flow_endpoint_builder::add_tx_proc(std::shared_ptr< flow_proc_builder > p) {
     if ( !first_tx_proc ) {
         first_tx_proc = std::move(p);
 
         return first_tx_proc;
     } else {
-        std::shared_ptr< flow_init_proc > current = first_tx_proc;
+        std::shared_ptr< flow_proc_builder > current = first_tx_proc;
 
         while ( current->get_next_proc() ) {
             current = current->get_next_proc();
@@ -71,34 +71,34 @@ public:
 private:
     void init() override {
 
-        ut_endpoint = new_usertype< flow_init_endpoint >(
-            "endpoint", sol::no_constructor, sol::base_classes, sol::bases< flow_init_node >());
+        ut_endpoint = new_usertype< flow_endpoint_builder >(
+            "endpoint", sol::no_constructor, sol::base_classes, sol::bases< flow_builder_node >());
 
-        ut_endpoint["name"]                        = &flow_init_node::name;
-        ut_endpoint[sol::meta_function::to_string] = &flow_init_node::name;
-        ut_endpoint["add_rx_proc"]                 = &flow_init_endpoint::add_rx_proc;
-        ut_endpoint["add_tx_proc"]                 = &flow_init_endpoint::add_tx_proc;
-        ut_endpoint["port_num"]                    = &flow_init_endpoint::get_port_num;
+        ut_endpoint["name"]                        = &flow_builder_node::name;
+        ut_endpoint[sol::meta_function::to_string] = &flow_builder_node::name;
+        ut_endpoint["add_rx_proc"]                 = &flow_endpoint_builder::add_rx_proc;
+        ut_endpoint["add_tx_proc"]                 = &flow_endpoint_builder::add_tx_proc;
+        ut_endpoint["port_num"]                    = &flow_endpoint_builder::get_port_num;
 
-        ut_proc = new_usertype< flow_init_proc >(
-            "processor", sol::no_constructor, sol::base_classes, sol::bases< flow_init_node >());
+        ut_proc = new_usertype< flow_proc_builder >(
+            "processor", sol::no_constructor, sol::base_classes, sol::bases< flow_builder_node >());
 
-        ut_proc["name"]                        = &flow_init_node::name;
-        ut_proc[sol::meta_function::to_string] = &flow_init_node::name;
-        ut_proc["next"]                        = &flow_init_proc::next;
-        ut_proc["set_param"]                   = &flow_init_proc::set_param;
-        ut_proc["get_param"]                   = &flow_init_proc::get_param;
+        ut_proc["name"]                        = &flow_builder_node::name;
+        ut_proc[sol::meta_function::to_string] = &flow_builder_node::name;
+        ut_proc["next"]                        = &flow_proc_builder::next;
+        ut_proc["set_param"]                   = &flow_proc_builder::set_param;
+        ut_proc["get_param"]                   = &flow_proc_builder::get_param;
 
-        set_function< std::shared_ptr< flow_init_proc > >(
-            "proc", std::function< std::shared_ptr< flow_init_proc >(const std::string&) >([](const std::string& name) {
-                return std::make_shared< flow_init_proc >(name);
+        set_function< std::shared_ptr< flow_proc_builder > >(
+            "proc", std::function< std::shared_ptr< flow_proc_builder >(const std::string&) >([](const std::string& name) {
+                return std::make_shared< flow_proc_builder >(name);
             }));
     }
 
     init_script_handler& init_handler;
 
-    sol::usertype< flow_init_endpoint > ut_endpoint;
-    sol::usertype< flow_init_proc >     ut_proc;
+    sol::usertype< flow_endpoint_builder > ut_endpoint;
+    sol::usertype< flow_proc_builder >     ut_proc;
 };
 
 init_script_handler::init_script_handler() {
@@ -133,11 +133,11 @@ flow_program init_script_handler::build_program(
 
         lua.load_extension(flow_ext);
 
-        std::vector< std::shared_ptr< flow_init_endpoint > > endpoint_list;
+        std::vector< std::shared_ptr< flow_endpoint_builder > > endpoint_list;
 
         std::transform(
             available_endpoints.begin(), available_endpoints.end(), std::back_inserter(endpoint_list), [](auto& ep) {
-                return std::make_shared< flow_init_endpoint >(ep->get_name(), ep->get_port_num());
+                return std::make_shared< flow_endpoint_builder >(ep->get_name(), ep->get_port_num());
             });
 
         lua.call< void >("init", endpoint_list);
@@ -149,7 +149,7 @@ flow_program init_script_handler::build_program(
 
             std::shared_ptr< dpdk_packet_mempool > current_mempool = available_endpoints[endpoint_idx]->get_mempool_shared();
 
-            std::shared_ptr< flow_init_proc > current = ep->get_first_rx_proc();
+            std::shared_ptr< flow_proc_builder > current = ep->get_first_rx_proc();
 
             auto& flow = prog.add_flow(fmt::format("flow-{}", ep->get_port_num()));
 
@@ -180,9 +180,9 @@ flow_program init_script_handler::build_program(
 void init_script_handler::handle_flow(flow_config&                      flow,
                                       flow_endpoint_base&               endpoint,
                                       std::shared_ptr< flow_database >  flow_database,
-                                      std::shared_ptr< flow_init_proc > proc_info,
+                                      std::shared_ptr< flow_proc_builder > proc_info,
                                       flow_dir                          dir) {
-    std::shared_ptr< flow_init_proc > current = std::move(proc_info);
+    std::shared_ptr< flow_proc_builder > current = std::move(proc_info);
 
     std::shared_ptr< dpdk_packet_mempool > current_mempool = endpoint.get_mempool_shared();
 

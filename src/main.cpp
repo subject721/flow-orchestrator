@@ -121,6 +121,8 @@ private:
     std::string               telemetry_addr;
     std::chrono::milliseconds telemetry_poll_interval;
 
+    scalar_metric<std::string> version_metric;
+
     std::unique_ptr< telemetry_distributor > telemetry;
 #endif
 };
@@ -169,7 +171,11 @@ int main(int argc, char** argv) {
 }
 
 flow_orchestrator_app::flow_orchestrator_app(int argc, char** argv) :
-    should_exit(false), pool_size(0), cache_size(0), dataroom_size(0), private_size(0) {
+    should_exit(false), pool_size(0), cache_size(0), dataroom_size(0), private_size(0)
+#if TELEMETRY_ENABLED == 1
+    ,version_metric("version")
+#endif
+{
     parse_args(argc, argv);
 
     if ( !should_exit ) {
@@ -330,6 +336,10 @@ void flow_orchestrator_app::setup() {
 
 #if TELEMETRY_ENABLED == 1
     telemetry = std::make_unique< telemetry_distributor >(telemetry_addr);
+
+    telemetry->add_metric(version_metric);
+
+    version_metric.set(VERSION_STR);
 #endif
 
     // dpdk_options.push_back("--no-shconf");

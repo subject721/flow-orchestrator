@@ -43,11 +43,25 @@ struct metric_serializer
 };
 
 template <class T>
+struct metric_serializer<T, std::enable_if_t<std::is_same_v<T, std::string>>>
+{
+    static void convert(json& j, const T& value) {
+        j["type"] = "string";
+        j["value"] = value;
+    }
+};
+
+template <class T>
 struct metric_serializer<T, std::enable_if_t<std::is_integral_v<T>>>
 {
     static void convert(json& j, const T& value) {
         j["type"] = "integer";
-        j["value"] = value;
+        if constexpr (std::is_unsigned_v<T>) {
+            j["value"] = (uint64_t)value;
+        } else {
+            j["value"] = (int64_t)value;
+        }
+
     }
 };
 
@@ -129,6 +143,19 @@ struct trivial_storage_adapter
 };
 
 
+template < class T, class U = void >
+struct autoselect_adapter {
+    using type = trivial_storage_adapter<T>;
+};
+
+template < class T>
+struct autoselect_adapter<T, std::enable_if_t<std::is_arithmetic_v<T> && (sizeof(T) <=sizeof(uintptr_t))>>
+{
+    using type = atomic_storage_adapter<T>;
+};
+
+template < class T >
+using autoselect_adapter_t = typename autoselect_adapter<T>::type;
 
 class metric_base : noncopyable
 {
@@ -167,7 +194,7 @@ private:
     friend class metric_group;
 };
 
-template < class T, class TStorageAdapter = atomic_storage_adapter<T>, class TSerializer = metric_serializer<T> >
+template < class T, class TStorageAdapter = autoselect_adapter_t<T>, class TSerializer = metric_serializer<T> >
 class scalar_metric : public metric_base
 {
 public:

@@ -171,7 +171,8 @@ uint16_t lua_packet_filter::process(mbuf_vec_base& mbuf_vec, flow_proc_context& 
 
 static auto packet_proc_factory = create_factory< flow_processor >()
                                       .append< ingress_packet_validator >("ingress_packet_validator")
-                                      .append< flow_classifier >("flow_classifier");
+                                      .append< flow_classifier >("flow_classifier")
+                                      .append<lua_packet_filter>("lua_packet_filter");
 
 std::unique_ptr< flow_processor > create_flow_processor(const std::string&                            class_name,
                                                         const std::string&                            instance_name,

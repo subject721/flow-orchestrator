@@ -97,6 +97,8 @@ struct flow_manager::private_data
     size_t num_endpoints;
 
     std::array< std::optional< packet_proc_flow >, MAX_NUM_FLOWS >     rx_proc_flows;
+    std::array< std::optional< packet_proc_flow >, MAX_NUM_FLOWS >     tx_proc_flows;
+
     std::array< std::unique_ptr< flow_endpoint_base >, MAX_NUM_FLOWS > proc_endpoints;
 
     std::unique_ptr<flow_executor_base<flow_manager>> executor;
@@ -142,21 +144,34 @@ void flow_manager::load(flow_program prog) {
         pdata->proc_endpoints[index] = flow.detach_endpoint();
 
         pdata->rx_proc_flows[index].emplace();
+        pdata->tx_proc_flows[index].emplace();
 
         for(auto& proc : flow_proc_iterator<flow_dir::RX>(flow)) {
             pdata->rx_proc_flows[index]->add_proc(std::move(proc));
         }
 
         for(auto& proc : flow_proc_iterator<flow_dir::TX>(flow)) {
-
+            pdata->tx_proc_flows[index]->add_proc(std::move(proc));
         }
 
-        auto chain_names = pdata->rx_proc_flows[index]->get_chain_names();
+        {
+            const auto chain_names = pdata->rx_proc_flows[index]->get_chain_names();
 
-        log(LOG_INFO, "Loaded processing chain for endpoint {}: ", pdata->proc_endpoints[index]->get_name());
+            log(LOG_INFO, "Loaded RX processing chain for endpoint {}: ", pdata->proc_endpoints[index]->get_name());
 
-        for(const auto& name : chain_names) {
-            log(LOG_INFO, "proc : {}", name);
+            for ( const auto& name : chain_names ) {
+                log(LOG_INFO, "proc : {}", name);
+            }
+        }
+
+        {
+            const auto chain_names = pdata->tx_proc_flows[index]->get_chain_names();
+
+            log(LOG_INFO, "Loaded TX processing chain for endpoint {}: ", pdata->proc_endpoints[index]->get_name());
+
+            for ( const auto& name : chain_names ) {
+                log(LOG_INFO, "proc : {}", name);
+            }
         }
 
         ++index;

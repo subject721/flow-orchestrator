@@ -34,58 +34,57 @@ struct is_flow_proc : std::bool_constant< std::is_base_of_v< flow_processor, T >
 {
 };
 
-class flow_init_node
+class flow_builder_node
 {
 public:
-    flow_init_node() {}
+    flow_builder_node() {}
 
-    flow_init_node(const std::string& id) : id(id) {}
+    flow_builder_node(const std::string& id) : id(id) {}
 
     const std::string& name() const noexcept {
         return id;
     }
-
 private:
     std::string id;
 };
 
-class flow_init_proc : public flow_init_node
+class flow_proc_builder : public flow_builder_node
 {
 public:
-    flow_init_proc() {}
+    flow_proc_builder() {}
 
-    flow_init_proc(const std::string& name) : flow_init_node(name) {}
+    flow_proc_builder(const std::string& name) : flow_builder_node(name) {}
 
     void set_param(const std::string& key, const std::string& value);
 
     std::optional< std::string > get_param(const std::string& key) const;
 
-    std::shared_ptr< flow_init_proc > next(std::shared_ptr< flow_init_proc > p);
+    std::shared_ptr< flow_proc_builder > next(std::shared_ptr< flow_proc_builder > p);
 
-    std::shared_ptr< flow_init_proc > get_next_proc() const {
+    std::shared_ptr< flow_proc_builder > get_next_proc() const {
         return next_proc;
     }
 
 private:
     std::map< std::string, std::string > params;
 
-    std::shared_ptr< flow_init_proc > next_proc;
+    std::shared_ptr< flow_proc_builder > next_proc;
 };
 
-class flow_init_endpoint : public flow_init_node
+class flow_endpoint_builder : public flow_builder_node
 {
 public:
-    flow_init_endpoint(const std::string& id, int port_num) : flow_init_node(id), port_num(port_num) {}
+    flow_endpoint_builder(const std::string& id, int port_num) : flow_builder_node(id), port_num(port_num) {}
 
-    std::shared_ptr< flow_init_proc > add_rx_proc(std::shared_ptr< flow_init_proc > p);
+    std::shared_ptr< flow_proc_builder > add_rx_proc(std::shared_ptr< flow_proc_builder > p);
 
-    std::shared_ptr< flow_init_proc > add_tx_proc(std::shared_ptr< flow_init_proc > p);
+    std::shared_ptr< flow_proc_builder > add_tx_proc(std::shared_ptr< flow_proc_builder > p);
 
-    std::shared_ptr< flow_init_proc > get_first_rx_proc() const {
+    std::shared_ptr< flow_proc_builder > get_first_rx_proc() const {
         return first_rx_proc;
     }
 
-    std::shared_ptr< flow_init_proc > get_first_tx_proc() const {
+    std::shared_ptr< flow_proc_builder > get_first_tx_proc() const {
         return first_tx_proc;
     }
 
@@ -94,8 +93,8 @@ public:
     }
 
 private:
-    std::shared_ptr< flow_init_proc > first_rx_proc;
-    std::shared_ptr< flow_init_proc > first_tx_proc;
+    std::shared_ptr< flow_proc_builder > first_rx_proc;
+    std::shared_ptr< flow_proc_builder > first_tx_proc;
 
     int port_num;
 };
@@ -252,7 +251,7 @@ private:
     void handle_flow(flow_config&                      flow,
                      flow_endpoint_base&               endpoint,
                      std::shared_ptr< flow_database >  flow_database,
-                     std::shared_ptr< flow_init_proc > proc_info,
+                     std::shared_ptr< flow_proc_builder > proc_info,
                      flow_dir                          dir);
 
     void cb_set_config_var(const std::string& name, const std::string& value);

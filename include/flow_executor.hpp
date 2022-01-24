@@ -139,9 +139,16 @@ public:
 
 private:
     static constexpr size_t get_min_num_lcores(size_t num_flows, size_t num_distributors, size_t num_queues) {
-        return ((execution_policy_type::num_workers_per_flow() * num_flows) +
+        // TODO: Disabled since running multiple endpoints on the same lcore does not work yet
+        /*if constexpr (execution_policy_type::allow_multiple_endpoints_per_worker()) {
+            return (1 +
                 (execution_policy_type::num_workers_per_distributor() * num_distributors)) *
                num_queues;
+        } else*/ {
+            return ((execution_policy_type::num_workers_per_flow() * num_flows) +
+                (execution_policy_type::num_workers_per_distributor() * num_distributors)) *
+               num_queues;
+        }
     }
 
     static std::vector< std::pair< uint32_t, std::vector< size_t > > > get_unique_assignment(
@@ -193,6 +200,10 @@ private:
 
 struct reduced_core_policy
 {
+
+    static constexpr bool allow_multiple_endpoints_per_worker() {
+        return true;
+    }
 
     static constexpr size_t num_workers_per_flow() {
         return 1;
