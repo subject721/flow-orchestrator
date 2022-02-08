@@ -8,55 +8,6 @@
 #include <common/file_utils.hpp>
 
 
-void flow_proc_builder::set_param(const std::string& key, const std::string& value) {
-    params[key] = value;
-}
-
-std::optional< std::string > flow_proc_builder::get_param(const std::string& key) const {
-    auto it = params.find(key);
-
-    return (it != params.end()) ? it->second : std::optional< std::string > {};
-}
-
-std::shared_ptr< flow_proc_builder > flow_proc_builder::next(std::shared_ptr< flow_proc_builder > p) {
-    next_proc = std::move(p);
-
-    return next_proc;
-}
-
-
-std::shared_ptr< flow_proc_builder > flow_endpoint_builder::add_rx_proc(std::shared_ptr< flow_proc_builder > p) {
-    if ( !first_rx_proc ) {
-        first_rx_proc = std::move(p);
-
-        return first_rx_proc;
-    } else {
-        std::shared_ptr< flow_proc_builder > current = first_rx_proc;
-
-        while ( current->get_next_proc() ) {
-            current = current->get_next_proc();
-        }
-
-        return current->next(std::move(p));
-    }
-}
-
-std::shared_ptr< flow_proc_builder > flow_endpoint_builder::add_tx_proc(std::shared_ptr< flow_proc_builder > p) {
-    if ( !first_tx_proc ) {
-        first_tx_proc = std::move(p);
-
-        return first_tx_proc;
-    } else {
-        std::shared_ptr< flow_proc_builder > current = first_tx_proc;
-
-        while ( current->get_next_proc() ) {
-            current = current->get_next_proc();
-        }
-
-        return current->next(std::move(p));
-    }
-}
-
 class flow_creation_lua_extension : public lua_engine_extension< flow_creation_lua_extension >
 {
 public:
@@ -74,8 +25,8 @@ private:
         ut_endpoint = new_usertype< flow_endpoint_builder >(
             "endpoint", sol::no_constructor, sol::base_classes, sol::bases< flow_builder_node >());
 
-        ut_endpoint["name"]                        = &flow_builder_node::name;
-        ut_endpoint[sol::meta_function::to_string] = &flow_builder_node::name;
+        ut_endpoint["get_instance_name"]           = &flow_builder_node::get_instance_name;
+        ut_endpoint[sol::meta_function::to_string] = &flow_builder_node::get_instance_name;
         ut_endpoint["add_rx_proc"]                 = &flow_endpoint_builder::add_rx_proc;
         ut_endpoint["add_tx_proc"]                 = &flow_endpoint_builder::add_tx_proc;
         ut_endpoint["port_num"]                    = &flow_endpoint_builder::get_port_num;
@@ -83,16 +34,20 @@ private:
         ut_proc = new_usertype< flow_proc_builder >(
             "processor", sol::no_constructor, sol::base_classes, sol::bases< flow_builder_node >());
 
-        ut_proc["name"]                        = &flow_builder_node::name;
-        ut_proc[sol::meta_function::to_string] = &flow_builder_node::name;
+        ut_proc["get_instance_name"]           = &flow_builder_node::get_instance_name;
+        ut_proc[sol::meta_function::to_string] = &flow_builder_node::get_instance_name;
         ut_proc["next"]                        = &flow_proc_builder::next;
         ut_proc["set_param"]                   = &flow_proc_builder::set_param;
         ut_proc["get_param"]                   = &flow_proc_builder::get_param;
 
         set_function< std::shared_ptr< flow_proc_builder > >(
-            "proc", std::function< std::shared_ptr< flow_proc_builder >(const std::string&) >([](const std::string& name) {
-                return std::make_shared< flow_proc_builder >(name);
-            }));
+            "proc",
+            std::function< std::shared_ptr< flow_proc_builder >(std::string, std::optional< std::string >) >(
+                [](std::string class_name, std::optional< std::string > instance_name_opt) {
+                    std::string instance_name = instance_name_opt.value_or(class_name);
+
+                    return std::make_shared< flow_proc_builder >(instance_name, class_name);
+                }));
     }
 
     init_script_handler& init_handler;
@@ -128,8 +83,12 @@ flow_program init_script_handler::build_program(
     std::vector< std::unique_ptr< flow_endpoint_base > > available_endpoints,
     const std::shared_ptr< flow_database >&              flow_database) {
 
+    std::string current_context_name;
+
     try {
         flow_creation_lua_extension flow_ext(*this);
+
+        current_context_name = "loading extension";
 
         lua.load_extension(flow_ext);
 
@@ -140,6 +99,8 @@ flow_program init_script_handler::build_program(
                 return std::make_shared< flow_endpoint_builder >(ep->get_name(), ep->get_port_num());
             });
 
+        current_context_name = "calling init()";
+
         lua.call< void >("init", endpoint_list);
 
         flow_program prog(program_name, flow_database);
@@ -147,7 +108,8 @@ flow_program init_script_handler::build_program(
         for ( size_t endpoint_idx = 0; endpoint_idx < available_endpoints.size(); ++endpoint_idx ) {
             const auto& ep = endpoint_list[endpoint_idx];
 
-            std::shared_ptr< dpdk_packet_mempool > current_mempool = available_endpoints[endpoint_idx]->get_mempool_shared();
+            std::shared_ptr< dpdk_packet_mempool > current_mempool =
+                available_endpoints[endpoint_idx]->get_mempool_shared();
 
             std::shared_ptr< flow_proc_builder > current = ep->get_first_rx_proc();
 
@@ -157,13 +119,17 @@ flow_program init_script_handler::build_program(
 
                 std::string s;
 
+                current_context_name = "loading rx flow";
+
                 handle_flow(
                     flow, *available_endpoints[endpoint_idx], flow_database, ep->get_first_rx_proc(), flow_dir::RX);
+
+                current_context_name = "loading tx flow";
 
                 handle_flow(
                     flow, *available_endpoints[endpoint_idx], flow_database, ep->get_first_tx_proc(), flow_dir::TX);
             } else {
-                log(LOG_INFO, "Flow for endpoint {} is empty", ep->name());
+                log(LOG_INFO, "Flow for endpoint {} is empty", ep->get_instance_name());
             }
 
             flow.set_endpoint(std::move(available_endpoints[endpoint_idx]));
@@ -173,15 +139,15 @@ flow_program init_script_handler::build_program(
 
     } catch ( const std::exception& e ) {
 
-        throw std::runtime_error(fmt::format("Could not call init function of init script : {}", e.what()));
+        throw std::runtime_error(fmt::format("Error while executing init script in context [{}] : {}", current_context_name, e.what()));
     }
 }
 
-void init_script_handler::handle_flow(flow_config&                      flow,
-                                      flow_endpoint_base&               endpoint,
-                                      std::shared_ptr< flow_database >  flow_database,
+void init_script_handler::handle_flow(flow_config&                         flow,
+                                      flow_endpoint_base&                  endpoint,
+                                      std::shared_ptr< flow_database >     flow_database,
                                       std::shared_ptr< flow_proc_builder > proc_info,
-                                      flow_dir                          dir) {
+                                      flow_dir                             flow_direction) {
     std::shared_ptr< flow_proc_builder > current = std::move(proc_info);
 
     std::shared_ptr< dpdk_packet_mempool > current_mempool = endpoint.get_mempool_shared();
@@ -190,22 +156,17 @@ void init_script_handler::handle_flow(flow_config&                      flow,
 
     while ( current ) {
         if ( s.empty() ) {
-            s = fmt::format("{} -> {}", endpoint.get_name(), current->name());
+            s = fmt::format("{} -> {}", endpoint.get_name(), current->get_instance_name());
         } else {
-            s = fmt::format("{} -> {}", s, current->name());
+            s = fmt::format("{} -> {}", s, current->get_instance_name());
         }
 
-
-        flow.add_proc(create_flow_processor(current->name(),
-                                            fmt::format("{}-{}", endpoint.get_name(), current->name()),
-                                            current_mempool,
-                                            flow_database),
-                      dir);
+        flow.add_proc(create_flow_processor(current, current_mempool, flow_database), flow_direction);
 
         current = current->get_next_proc();
     }
 
-    log(LOG_INFO, "{} chain for endpoint {}: {}", get_flow_dir_name(dir), endpoint.get_name(), s);
+    log(LOG_INFO, "{} chain for endpoint {}: {}", get_flow_dir_name(flow_direction), endpoint.get_name(), s);
 }
 
 void init_script_handler::cb_set_config_var(const std::string& name, const std::string& value) {}

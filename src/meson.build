@@ -6,6 +6,7 @@ flow_orchestrator_sources += files([
     'dpdk/dpdk_common.cpp',
     'dpdk/dpdk_ethdev.cpp',
     'flow_base.cpp',
+    'flow_builder_types.cpp',
     'flow_config.cpp',
     'flow_processor.cpp',
     'flow_endpoints.cpp',

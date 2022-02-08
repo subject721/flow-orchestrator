@@ -43,3 +43,15 @@ bool calc_flow_hash(rte_mbuf* mbuf, flow_hash* flow_hash) {
 
     return true;
 }
+
+std::string ipv4_to_str(uint32_t ipv4) {
+    uint8_t tmp[sizeof(uint32_t)];
+
+    rte_memcpy(tmp, &ipv4, sizeof(uint32_t));
+
+    return fmt::format("{}.{}.{}.{}",
+                       (uint32_t) tmp[0],
+                       (uint32_t) tmp[1],
+                       (uint32_t) tmp[2],
+                       (uint32_t) tmp[3]);
+}

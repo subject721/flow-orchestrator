@@ -10,11 +10,13 @@
 
 
 template < class T >
-struct factory_element
+class factory_element
 {
+public:
     using type = T;
 
     explicit factory_element(const char* name) : name(name) {}
+
 
     template < class... TCtorArgs >
     static std::true_type ctor_trycall(decltype(T(std::declval< TCtorArgs >()...))*);
@@ -64,6 +66,12 @@ struct factory_element
         }
     }
 
+    const char* get_instance_name() const noexcept {
+        return name;
+    }
+
+private:
+
     const char* name;
 };
 
@@ -72,7 +80,7 @@ struct factory_tuple_iterator
 {
     template < class TTarget, class... TArgs >
     static void check_and_create(TTuple& t, const std::string& target_name, TTarget& target, TArgs&&... args) {
-        if ( target_name == std::get< I >(t).name ) {
+        if ( target_name == std::get< I >(t).get_instance_name() ) {
             std::get< I >(t).construct_and_assign(target, std::forward< TArgs >(args)...);
 
             return;
@@ -101,10 +109,10 @@ struct factory_collection
 
     factory_container_type factories;
 
-    explicit factory_collection(factory_container_type f) : factories(std::move(f)) {}
+    explicit constexpr factory_collection(factory_container_type f) : factories(std::move(f)) {}
 
     template < class TNext >
-    auto append(const char* name) {
+    constexpr auto append(const char* name) {
         return factory_collection< TBaseClass, TCreationTypes..., TNext >(
             std::tuple_cat(factories, std::tuple< factory_element< TNext > >(name)));
     }
@@ -117,6 +125,6 @@ struct factory_collection
 };
 
 template < class TBaseClass >
-auto create_factory() {
+constexpr auto create_factory() {
     return factory_collection< TBaseClass >({});
 }

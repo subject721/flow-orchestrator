@@ -123,3 +123,5 @@ static __inline void init_flow_info_ipv4(flow_info_ipv4*      flow_info,
 
 
 bool calc_flow_hash(rte_mbuf* mbuf, flow_hash* flow_hash);
+
+std::string ipv4_to_str(uint32_t ipv4);

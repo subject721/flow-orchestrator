@@ -61,7 +61,7 @@ void _log(log_message msg) {
         color_str = ORANGE_COLOR;
     } else if ( msg.get_log_level() == LOG_ERROR ) {
         color_str = RED_COLOR;
-    } else if ( msg.get_log_level() == LOG_INFO ) {
+    } else if ( msg.get_log_level() == LOG_DEBUG ) {
         color_str = GREEN_COLOR;
     }
 

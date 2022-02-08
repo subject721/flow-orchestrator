@@ -109,7 +109,6 @@ public:
         if ( f.valid() ) {
             sol::protected_function_result ret = f.call(std::forward< TArgs >(args)...);
 
-
             if ( ret.valid() ) {
                 if constexpr (!std::is_same_v<TRet, void>) {
                     return ret.get< TRet >();
@@ -141,6 +140,11 @@ public:
     template < class TRet, class... TArgs >
     void set_function(const std::string& name, std::function< TRet(TArgs...) > func) {
         state.set_function(name, func);
+    }
+
+    template < class TCallable >
+    void set_function(const std::string& name, TCallable&& callable) {
+        state.set_function(name, std::forward<TCallable>(callable));
     }
 
     void detach_all(lua_attachment_base& attachment);

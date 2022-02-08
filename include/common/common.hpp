@@ -132,6 +132,12 @@ void log(TArgs&&... args) {
     _log(log_message(std::forward< TArgs >(args)...));
 }
 
+#ifdef DEBUG
+#define DBG(FMT, ...) log(LOG_DEBUG, FMT __VA_OPT__(,) __VA_ARGS__)
+#else // DEBUG
+#define DBG(FMT, ...)
+#endif // DEBUG
+
 
 template < class T, class A >
 constexpr auto align_to_next_multiple(T value, A alignment) {

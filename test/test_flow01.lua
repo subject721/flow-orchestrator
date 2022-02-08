@@ -8,13 +8,11 @@ function init(endpoints)
     do
         local endpoint = endpoints[ep_index]
 
-        logf(INFO, "Creating flow for endpoint %s", endpoint:name())
+        logf(INFO, "Creating flow for endpoint %s", endpoint:get_instance_name())
 
-        local packet_validator = flow.proc("ingress_packet_validator")
-        local flow_classifier = flow.proc("flow_classifier")
-        local lua_filter = flow.proc("lua_packet_filter")
-
-        flow_classifier:set_param("test", "value")
+        local packet_validator = flow.proc("ingress_packet_validator", "validator")
+        local flow_classifier = flow.proc("flow_classifier", "classifier")
+        local lua_filter = flow.proc("lua_packet_filter", "filter01")
 
         lua_filter:set_param("script_filename", "test/filter01.lua")
 

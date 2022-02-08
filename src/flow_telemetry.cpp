@@ -89,17 +89,26 @@ telemetry_distributor::telemetry_distributor(const std::string& endpoint_addr) {
     pdata->socket->bind(endpoint_addr);
 
     pdata->start_time = std::chrono::high_resolution_clock::now();
+
+    log(LOG_INFO, "Started telemetry server");
 }
 
 telemetry_distributor::~telemetry_distributor() {
-    {
-        std::lock_guard<std::mutex> guard(pdata->lk);
+    if(pdata) {
+        {
+            std::lock_guard< std::mutex > guard(pdata->lk);
 
-        pdata->metrics.clear();
+            pdata->metrics.clear();
+        }
+
+        if(pdata->socket.has_value()) {
+            pdata->socket->close();
+        }
+
+        pdata->ctx.close();
+
+        log(LOG_INFO, "Stopped telemetry server");
     }
-
-    pdata->socket->close();
-    pdata->ctx.close();
 }
 
 void telemetry_distributor::add_metric(metric_base& m) {
