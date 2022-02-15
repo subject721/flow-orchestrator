@@ -20,6 +20,29 @@ For building you basically need to have the following things installed:
 
 NOTE: The dependencies must be installed in a way that meson is able to find them. In most cases this is via pkg-config
 
+## Features
+
+- Support for dpdk eth devices
+- Define packet flows with lua script executed at startup
+- Packet flag extraction and flow tagging
+
+Example of a lua script used with the `lua_packet_filter` packet processor assigning packets to ports (devices) by some simple rules
+
+``` lua
+function process(packet)
+
+    if packet:is_icmp() then
+        logf(INFO, "pkt: src_ip = %s, dst_ip = %s, ", ipv4_to_str(packet:get_src_ipv4()), ipv4_to_str(packet:get_dst_ipv4()))
+    end
+
+    if packet:get_src_endpoint_id() == 0 then
+        return 1
+    else
+        return 0
+    end
+end
+```
+With this script I achieve on my test setup up to 6.5Mpkts/sec on a single queue/core. But the current feature set is still very limited.
 
 ## Whatever
 
