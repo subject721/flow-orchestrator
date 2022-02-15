@@ -12,7 +12,7 @@
 
 #include <rte_ethdev.h>
 
-
+// TODO: Make this a singleton per port id. You can't have multiple instances of the same port anyway...
 class dpdk_ethdev : noncopyable
 {
 public:
@@ -65,10 +65,14 @@ public:
 
     rte_ether_addr get_mac_addr() const;
 
+    bool is_up() const;
+
     static eth_device_info get_device_info(uint64_t port_id);
 
 private:
     uint64_t port_id;
+
+    uint64_t offload_flags;
 
     std::shared_ptr< dpdk_packet_mempool > mempool;
 
@@ -80,7 +84,7 @@ private:
 
     bool started;
 
-    bool is_up;
+    bool is_running;
 };
 
 std::vector< uint64_t > get_available_ethdev_ids();

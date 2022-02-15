@@ -14,6 +14,7 @@ function init(endpoints)
         local flow_classifier = flow.proc("flow_classifier", "classifier")
         local lua_filter = flow.proc("lua_packet_filter", "filter01")
 
+        lua_filter:set_param("eval_flow_once", "true")
         lua_filter:set_param("script_filename", "test/filter01.lua")
 
         packet_validator:next(flow_classifier)

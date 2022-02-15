@@ -4,6 +4,8 @@
  *
  */
 
+#include <common/common.hpp>
+
 #include <flow_processor.hpp>
 
 #include <common/generic_factory.hpp>
@@ -11,6 +13,9 @@
 
 #include <rte_ip_frag.h>
 
+#include <optional>
+#include "common/network_utils.hpp"
+#include "rte_atomic.h"
 
 flow_processor::flow_processor(std::string name, std::shared_ptr< dpdk_packet_mempool > mempool) :
     flow_node_base(std::move(name), std::move(mempool)) {}
@@ -54,13 +59,18 @@ uint16_t ingress_packet_validator::process(mbuf_vec_base& mbuf_vec, flow_proc_co
                     rte_vlan_strip(current_packet);
                 }
 
-                l2_len = sizeof(rte_ether_hdr);
+                //l2_len = sizeof(rte_ether_hdr);
 
                 packet_info->ether_type = l2_proto;
                 packet_info->l3_offset  = l2_len;
 
+                current_packet->l2_type = l2_proto;
+                current_packet->l2_len = l2_len;
+
+
                 if ( l2_proto == ether_type_info< RTE_ETHER_TYPE_IPV4 >::ether_type_be ) {
-                    drop_packet |= handle_ipv4_packet(rte_pktmbuf_mtod_offset(current_packet, const uint8_t*, l2_len),
+                    drop_packet |= handle_ipv4_packet(current_packet,
+                                                      rte_pktmbuf_mtod_offset(current_packet, const uint8_t*, l2_len),
                                                       packet_len - l2_len,
                                                       packet_info);
                 }
@@ -83,7 +93,8 @@ uint16_t ingress_packet_validator::process(mbuf_vec_base& mbuf_vec, flow_proc_co
 
 void ingress_packet_validator::init(const flow_proc_builder& builder) {}
 
-bool ingress_packet_validator::handle_ipv4_packet(const uint8_t*       ipv4_header_base,
+bool ingress_packet_validator::handle_ipv4_packet(rte_mbuf*            mbuf,
+                                                  const uint8_t*       ipv4_header_base,
                                                   uint16_t             l3_len,
                                                   packet_private_info* packet_info) {
     if ( unlikely(l3_len < sizeof(rte_ipv4_hdr)) )
@@ -95,7 +106,11 @@ bool ingress_packet_validator::handle_ipv4_packet(const uint8_t*       ipv4_head
 
     uint16_t ipv4_packet_len = rte_be_to_cpu_16(ipv4_header->total_length);
 
+    mbuf->ol_flags |= PKT_TX_IPV4 | PKT_TX_IP_CKSUM;
+    mbuf->l3_len = ipv4_header_len;
+
     packet_info->ipv4_type = ipv4_header->next_proto_id;
+    mbuf->l3_type = ipv4_header->next_proto_id;
 
     // TODO: Handle reassembly of packets (maybe?)
 
@@ -104,6 +119,14 @@ bool ingress_packet_validator::handle_ipv4_packet(const uint8_t*       ipv4_head
     if ( !packet_info->is_fragment ) {
         if ( unlikely(l3_len < ipv4_packet_len) )
             return true;
+
+        if(packet_info->ipv4_type == IPPROTO_UDP) {
+            mbuf->ol_flags |= PKT_TX_UDP_CKSUM;
+            mbuf->l4_len = sizeof(rte_udp_hdr);
+        } else if(packet_info->ipv4_type == IPPROTO_TCP) {
+            mbuf->ol_flags |= PKT_TX_TCP_CKSUM;
+            mbuf->l4_len = sizeof(rte_tcp_hdr);
+        }
     }
 
     packet_info->l4_offset = packet_info->l3_offset + ipv4_header_len;
@@ -136,6 +159,7 @@ uint16_t flow_classifier::process(mbuf_vec_base& mbuf_vec, flow_proc_context& ct
             if ( likely(packet_info->flow_info) ) {
                 if ( entry_created ) {
                     packet_info->flow_info->mark = 0;
+                    packet_info->flow_info->overwrite_dst_port = PORT_ID_IGNORE;
 
                     const rte_ether_hdr* ether_header =
                         rte_pktmbuf_mtod_offset(current_packet, struct rte_ether_hdr*, 0);
@@ -207,27 +231,71 @@ struct lua_packet_accessor
     uint32_t get_src_ipv4() const noexcept {
         return (flow_info != nullptr) ? flow_info->src_addr : 0;
     }
+
+    uint16_t get_src_endpoint() const noexcept {
+        return packet_info->src_endpoint_id;
+    }
+
+    uint16_t get_dst_endpoint() const noexcept {
+        return packet_info->dst_endpoint_id;
+    }
 };
+
+static constexpr int PACKET_ACTION_DROP      = -1;
+static constexpr int PACKET_ACTION_BROADCAST = -2;
+
 
 lua_packet_filter::lua_packet_filter(std::string                            name,
                                      std::shared_ptr< dpdk_packet_mempool > mempool,
                                      std::shared_ptr< flow_database >       flow_database_ptr) :
-    flow_processor(std::move(name), std::move(mempool)), flow_database_ptr(std::move(flow_database_ptr)) {}
+    flow_processor(std::move(name), std::move(mempool)), flow_database_ptr(std::move(flow_database_ptr)), eval_flow_once(false) {}
 
 uint16_t lua_packet_filter::process(mbuf_vec_base& mbuf_vec, flow_proc_context& ctx) {
 
 
-    for(auto packet : mbuf_vec) {
+    for ( auto packet : mbuf_vec ) {
         lua_packet_accessor packet_accessor;
 
         packet_accessor.init(packet);
 
+        if ( !packet_accessor.flow_info ) {
+            // Just ignore packets without a valid flow for now...
+            // Can be improved later™
+            continue;
+        }
+
+        if(eval_flow_once) {
+            uint16_t overwrite_dst_port = packet_accessor.flow_info->overwrite_dst_port;
+
+            if(overwrite_dst_port != PORT_ID_IGNORE) {
+                packet_accessor.packet_info->dst_endpoint_id = overwrite_dst_port;
+
+                continue;
+            }
+        }
+
         auto result = process_function.call(packet_accessor);
 
-        if(result.status() != sol::call_status::ok) {
+        if ( unlikely(result.status() != sol::call_status::ok) ) {
             sol::error err = result;
 
             log(LOG_INFO, "lua process call failed {}", err.what());
+        } else {
+            auto ret = result.get< int >();
+
+            if ( ret == PACKET_ACTION_DROP ) {
+                packet_accessor.packet_info->dst_endpoint_id = PORT_ID_DROP;
+            } else if ( ret == PACKET_ACTION_BROADCAST ) {
+                packet_accessor.packet_info->dst_endpoint_id = PORT_ID_BROADCAST;
+            } else if(ret >= 0) {
+                packet_accessor.packet_info->dst_endpoint_id = (uint16_t)ret;
+            }
+
+            if(eval_flow_once) {
+                packet_accessor.flow_info->overwrite_dst_port = packet_accessor.packet_info->dst_endpoint_id;
+
+                rte_wmb();
+            }
         }
     }
 
@@ -264,12 +332,13 @@ void lua_packet_filter::init(const flow_proc_builder& builder) {
         process_function = proc_func.value();
     }
 
-    lua.set_function("ipv4_to_str", [](uint32_t ipv4) -> std::string {
-            return ipv4_to_str(ipv4);
-       });
+    lua.set_function("ipv4_to_str", [](uint32_t ipv4) -> std::string { return ipv4_to_str(ipv4); });
+
+    lua.set("DROP", PACKET_ACTION_DROP);
+    lua.set("BROADCAST", PACKET_ACTION_BROADCAST);
 
     lua.get().new_usertype< lua_packet_accessor >("packet",
-                                                  //sol::no_constructor,
+                                                  sol::no_constructor,
                                                   "is_arp",
                                                   &lua_packet_accessor::is_arp,
                                                   "is_ipv4",
@@ -283,8 +352,17 @@ void lua_packet_filter::init(const flow_proc_builder& builder) {
                                                   "get_dst_ipv4",
                                                   &lua_packet_accessor::get_dst_ipv4,
                                                   "get_src_ipv4",
-                                                  &lua_packet_accessor::get_src_ipv4);
+                                                  &lua_packet_accessor::get_src_ipv4,
+                                                  "get_src_endpoint_id",
+                                                  &lua_packet_accessor::get_src_endpoint,
+                                                  "get_dst_endpoint_id",
+                                                  &lua_packet_accessor::get_dst_endpoint);
 
+    auto eval_flow_once_opt = builder.get_param("eval_flow_once");
+
+    if(eval_flow_once_opt.has_value()) {
+        eval_flow_once = (eval_flow_once_opt.value() == "true");
+    }
 }
 
 

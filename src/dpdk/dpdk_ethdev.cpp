@@ -24,7 +24,7 @@ dpdk_ethdev::dpdk_ethdev(uint64_t                        port_id,
                          uint16_t                        num_rx_queues,
                          uint16_t                        num_tx_queues,
                          std::shared_ptr< dpdk_packet_mempool > mempool) :
-    mempool(std::move(mempool)), configured(false), started(false), is_up(false) {
+    mempool(std::move(mempool)), configured(false), started(false), is_running(false) {
 
     std::memset(&local_dev_info, 0, sizeof(local_dev_info));
 
@@ -38,19 +38,26 @@ dpdk_ethdev::dpdk_ethdev(uint64_t                        port_id,
     }
 
     this->port_id = port_id;
+    this->offload_flags = offload_flags;
 
-    if ( local_dev_info.tx_offload_capa & DEV_TX_OFFLOAD_MBUF_FAST_FREE )
+    if ( local_dev_info.tx_offload_capa & DEV_TX_OFFLOAD_MBUF_FAST_FREE ) {
+        log(LOG_DEBUG, "Device {}: Enabled DEV_TX_OFFLOAD_MBUF_FAST_FREE", port_id);
         local_dev_conf.txmode.offloads |= DEV_TX_OFFLOAD_MBUF_FAST_FREE;
+    }
+
 
     if ( (offload_flags & DEV_TX_OFFLOAD_IPV4_CKSUM) && (local_dev_info.tx_offload_capa & DEV_TX_OFFLOAD_IPV4_CKSUM) ) {
+        log(LOG_DEBUG, "Device {}: Enabled DEV_TX_OFFLOAD_IPV4_CKSUM", port_id);
         local_dev_conf.txmode.offloads |= DEV_TX_OFFLOAD_IPV4_CKSUM;
     }
 
     if ( (offload_flags & DEV_TX_OFFLOAD_UDP_CKSUM) && (local_dev_info.tx_offload_capa & DEV_TX_OFFLOAD_UDP_CKSUM) ) {
+        log(LOG_DEBUG, "Device {}: Enabled DEV_TX_OFFLOAD_UDP_CKSUM", port_id);
         local_dev_conf.txmode.offloads |= DEV_TX_OFFLOAD_UDP_CKSUM;
     }
 
     if ( (offload_flags & DEV_TX_OFFLOAD_TCP_CKSUM) && (local_dev_info.tx_offload_capa & DEV_TX_OFFLOAD_TCP_CKSUM) ) {
+        log(LOG_DEBUG, "Device {}: Enabled DEV_TX_OFFLOAD_TCP_CKSUM", port_id);
         local_dev_conf.txmode.offloads |= DEV_TX_OFFLOAD_TCP_CKSUM;
     }
 
@@ -109,11 +116,11 @@ dpdk_ethdev::dpdk_ethdev(uint64_t                        port_id,
 
 dpdk_ethdev::~dpdk_ethdev() {
     if ( configured ) {
-        if ( is_up ) {
+        //if ( is_running ) {
             rte_eth_dev_set_link_down(port_id);
 
-            is_up = false;
-        }
+            is_running = false;
+        //}
 
         if ( started ) {
             stop();
@@ -139,6 +146,8 @@ void dpdk_ethdev::start() {
     if ( status < 0 ) {
         throw std::runtime_error(fmt::format("could not start eth device {}: {}", port_id, rte_strerror(status)));
     }
+
+    rte_eth_dev_set_link_up(port_id);
 
     started = true;
 }
@@ -187,6 +196,17 @@ rte_ether_addr dpdk_ethdev::get_mac_addr() const {
     return mac_addr;
 }
 
+bool dpdk_ethdev::is_up() const {
+    rte_eth_link link_status{};
+
+    int rc = rte_eth_link_get_nowait(port_id, &link_status);
+
+    if(rc) {
+        return false;
+    } else {
+        return (link_status.link_status == ETH_LINK_UP);
+    }
+}
 
 dpdk_ethdev::eth_device_info dpdk_ethdev::get_device_info(uint64_t port_id) {
     rte_eth_dev_info dev_info {};

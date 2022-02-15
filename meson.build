@@ -35,7 +35,7 @@ if opt_reduced_simd_level and opt_enable_avx512
     error('Cannot enable AVX512 while using a reduced SIMD feature set at the same time!')
 endif
 
-opt_enable_telemetry_if = true
+opt_enable_telemetry_if = get_option('enable-telemetry')
 
 
 cfg.set10('TELEMETRY_ENABLED', opt_enable_telemetry_if)
@@ -43,9 +43,11 @@ cfg.set10('TELEMETRY_ENABLED', opt_enable_telemetry_if)
 
 cxx_flags += '-Wno-unused-parameter'
 
+tool_xxd = find_program(['xxd'], required: true)
+
+
 subdir('buildcfg')
 
-tool_xxd = find_program(['xxd'], required: true)
 
 ############################
 # Dependency setup
@@ -124,7 +126,8 @@ summary({'Buildtype' : opt_buildtype,
         'Using Conan deps' : opt_use_conan_deps,
         'Using reduced SIMD level' : opt_reduced_simd_level,
         'Using AVX512' : opt_enable_avx512,
-        'SIMD flags' : simd_flags
+        'SIMD flags' : simd_flags,
+        'Telemetry enabled' : opt_enable_telemetry_if
         }, section: 'Configuration')
 
 

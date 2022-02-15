@@ -3,3 +3,5 @@ option('use-conan-deps', type : 'boolean', value : false, description: 'Used Con
 option('reduced-simd-level', type: 'boolean', value: false, description: 'Reduce the feature level of used SIMD instructions in order to support older CPU platforms')
 
 option('enable-avx512', type: 'boolean', value: false, description: 'Enable the usage of AVX512 instructions')
+
+option('enable-telemetry', type: 'boolean', value: true, description: 'Enable telemetry exporting')

@@ -25,11 +25,19 @@ enum ip_next_proto : uint8_t
 };
 
 constexpr const uint16_t PORT_ID_BROADCAST = 0xffff;
+constexpr const uint16_t PORT_ID_DROP      = 0x7fff;
+constexpr const uint16_t PORT_ID_IGNORE    = 0xbfff;
 
 using flow_hash = uint64_t;
 
 struct flow_info_ipv4
 {
+    uint64_t counter;
+
+    uint64_t last_used;
+
+    uint64_t mark;
+
     uint32_t src_addr;
     uint32_t dst_addr;
 
@@ -39,13 +47,9 @@ struct flow_info_ipv4
     rte_ether_addr ether_src;
     rte_ether_addr ether_dst;
 
+    uint16_t overwrite_dst_port;
+
     uint8_t ipv4_proto;
-
-    uint64_t counter;
-
-    uint64_t last_used;
-
-    uint64_t mark;
 
     __inline bool get_mark_bit(uint8_t idx) const noexcept {
         return (mark & (1 << idx));

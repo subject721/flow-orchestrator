@@ -78,7 +78,7 @@ public:
     void init(const flow_proc_builder& builder) override;
 
 private:
-    static bool handle_ipv4_packet(const uint8_t* ipv4_header_base, uint16_t l3_len, packet_private_info* packet_info);
+    static bool handle_ipv4_packet(rte_mbuf* mbuf, const uint8_t* ipv4_header_base, uint16_t l3_len, packet_private_info* packet_info);
 
 };
 
@@ -114,6 +114,8 @@ public:
 
 private:
     std::shared_ptr< flow_database > flow_database_ptr;
+
+    bool eval_flow_once;
 
     lua_engine lua;
 

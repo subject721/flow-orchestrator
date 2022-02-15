@@ -121,7 +121,7 @@ private:
     std::string               telemetry_addr;
     std::chrono::milliseconds telemetry_poll_interval;
 
-    scalar_metric<std::string> version_metric;
+    scalar_metric< std::string > version_metric;
 
     std::unique_ptr< telemetry_distributor > telemetry;
 #endif
@@ -171,9 +171,14 @@ int main(int argc, char** argv) {
 }
 
 flow_orchestrator_app::flow_orchestrator_app(int argc, char** argv) :
-    should_exit(false), pool_size(0), cache_size(0), dataroom_size(0), private_size(0)
+    should_exit(false),
+    pool_size(0),
+    cache_size(0),
+    dataroom_size(0),
+    private_size(0)
 #if TELEMETRY_ENABLED == 1
-    ,version_metric("version")
+    ,
+    version_metric("version")
 #endif
 {
     parse_args(argc, argv);
@@ -435,7 +440,8 @@ void flow_orchestrator_app::load_flow_proc() {
 
         init_handler.load_init_script(init_script_name);
 
-        std::shared_ptr<flow_database> fdatabase = std::make_shared<flow_database>(DEFAULT_FLOW_TABLE_SIZE, processing_lcores);
+        std::shared_ptr< flow_database > fdatabase =
+            std::make_shared< flow_database >(DEFAULT_FLOW_TABLE_SIZE, processing_lcores);
 
         auto flow_program = init_handler.build_program(std::move(endpoints), fdatabase);
 
@@ -454,6 +460,12 @@ std::unique_ptr< flow_endpoint_base > flow_orchestrator_app::create_endpoint(con
     if ( type == "eth" ) {
         uint64_t dev_port_id = 0;
 
+        uint64_t offload_flags = 0;
+
+        offload_flags |= DEV_TX_OFFLOAD_IPV4_CKSUM;
+        offload_flags |= DEV_TX_OFFLOAD_UDP_CKSUM;
+        offload_flags |= DEV_TX_OFFLOAD_TCP_CKSUM;
+
         const auto all_devices = get_available_ethdev_ids();
 
         auto dev_it = std::find_if(all_devices.begin(), all_devices.end(), [&id](uint64_t port_id) {
@@ -468,7 +480,7 @@ std::unique_ptr< flow_endpoint_base > flow_orchestrator_app::create_endpoint(con
 
         log(LOG_INFO, "Creating device instance {} of type {} as port {}", id, type, dev_port_id);
 
-        auto eth_dev = std::make_unique< dpdk_ethdev >(dev_port_id, 0, 1024, 1024, 1, 1, mempool);
+        auto eth_dev = std::make_unique< dpdk_ethdev >(dev_port_id, offload_flags, 1024, 1024, 1, 1, mempool);
 
         // Endpoint nodes have their name set to the id of the actual interface (at least for now)
         return std::make_unique< eth_dpdk_endpoint >(id, mempool, std::move(eth_dev));
