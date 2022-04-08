@@ -60,10 +60,10 @@ public:
                     return (endpoint_socket == lc_info.get_socket_id());
                 });
 
-            // No lcore on the same socket available. Take any
+            // No lcore on the same NUMA node available. Take any
             if ( best_match_it == remaining_lcores.end() ) {
                 log(LOG_WARN,
-                    "No lcore on the same socket as the current endpoint available. This will degrade performance.");
+                    "No lcore on the same NUMA node as the current endpoint available. This will degrade performance.");
 
                 best_match_it = remaining_lcores.begin();
             }

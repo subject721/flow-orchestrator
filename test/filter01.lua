@@ -7,7 +7,7 @@ end
 function process(packet)
 
     if packet:is_icmp() then
-        logf(INFO, "pkt: src_ip = %s, dst_ip = %s, ", ipv4_to_str(packet:get_src_ipv4()), ipv4_to_str(packet:get_dst_ipv4()))
+        logf(INFO, "icmp pkt: src_ip = %s, dst_ip = %s, src port %u", ipv4_to_str(packet:get_src_ipv4()), ipv4_to_str(packet:get_dst_ipv4()), packet:get_src_endpoint_id())
     end
 
     if packet:get_src_endpoint_id() == 0 then

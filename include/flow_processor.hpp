@@ -78,7 +78,7 @@ public:
     void init(const flow_proc_builder& builder) override;
 
 private:
-    static bool handle_ipv4_packet(rte_mbuf* mbuf, const uint8_t* ipv4_header_base, uint16_t l3_len, packet_private_info* packet_info);
+    static bool handle_ipv4_packet(rte_mbuf* mbuf, uint8_t* ipv4_header_base, uint16_t l3_len, packet_private_info* packet_info);
 
 };
 

@@ -81,10 +81,12 @@ struct flow_manager::private_data
     ,flow_metric_grp("flows")
     ,m_total_packets("total_packets", metric_unit::PACKETS)
     ,m_total_executions("total_executions", metric_unit::NONE)
+    ,m_num_flow_entries("num_flow_entries", metric_unit::NONE)
 
     {
                 flow_metric_grp.add_metric(m_total_packets);
                 flow_metric_grp.add_metric(m_total_executions);
+                flow_metric_grp.add_metric(m_num_flow_entries);
             }
 #else
     {}
@@ -112,6 +114,8 @@ struct flow_manager::private_data
 
     // XXX: Test
     scalar_metric<uint64_t> m_total_executions;
+
+    scalar_metric<uint64_t> m_num_flow_entries;
 #endif
 };
 
@@ -321,6 +325,8 @@ void flow_manager::distributor_work_callback(const size_t* distributor_ids, size
             p->m_total_packets.add(num_pulled_bufs);
 
             p->m_total_executions.inc();
+
+            p->m_num_flow_entries.set(p->flow_database_ptr->get_num_flows());
 #endif
             // log(LOG_INFO, "lcore{} : transmitting {} packets on endpoint {}", lcore_id, num_pulled_bufs, index);
 

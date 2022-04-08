@@ -51,7 +51,7 @@ struct alignas(RTE_CACHE_LINE_SIZE) flow_table_entry_state
 };
 
 flow_database::flow_database(size_t max_entries, std::vector< lcore_info > write_allowed_lcores) :
-    max_entries(max_entries), write_allowed_lcores(write_allowed_lcores) {
+    max_entries(max_entries), current_num_entries(0), write_allowed_lcores(write_allowed_lcores) {
 
     size_t element_size = sizeof(flow_info_ipv4);
     size_t cache_size   = 0;
@@ -177,6 +177,8 @@ flow_info_ipv4* flow_database::get_or_create(flow_hash fhash, bool& created) {
                 dst_state->lru_head = new_lru_head;
 
                 created = true;
+
+                ++current_num_entries;
             }
         }
     }
@@ -206,4 +208,8 @@ void flow_database::set_lcore_inactive(unsigned int lcore_id) {
     lcore_state[lcore_id] = 0;
 
     rte_rcu_qsbr_thread_unregister(rcu_state.get(), lcore_id);
+}
+
+size_t flow_database::get_num_flows() {
+   return current_num_entries.load(std::memory_order_relaxed); 
 }

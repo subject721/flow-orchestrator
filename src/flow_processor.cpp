@@ -15,7 +15,12 @@
 
 #include <optional>
 #include "common/network_utils.hpp"
+#include "generic/rte_atomic.h"
 #include "rte_atomic.h"
+#include "rte_mbuf.h"
+#include "rte_mbuf_core.h"
+#include "rte_tcp.h"
+#include "rte_udp.h"
 
 flow_processor::flow_processor(std::string name, std::shared_ptr< dpdk_packet_mempool > mempool) :
     flow_node_base(std::move(name), std::move(mempool)) {}
@@ -70,13 +75,19 @@ uint16_t ingress_packet_validator::process(mbuf_vec_base& mbuf_vec, flow_proc_co
 
                 if ( l2_proto == ether_type_info< RTE_ETHER_TYPE_IPV4 >::ether_type_be ) {
                     drop_packet |= handle_ipv4_packet(current_packet,
-                                                      rte_pktmbuf_mtod_offset(current_packet, const uint8_t*, l2_len),
+                                                      rte_pktmbuf_mtod_offset(current_packet, uint8_t*, l2_len),
                                                       packet_len - l2_len,
                                                       packet_info);
                 }
             } else {
                 drop_packet = true;
             }
+
+/*            log(LOG_DEBUG, "ingress packet: len {}, l2 len {}, l3 len {}, l4 len {}",
+                current_packet->pkt_len,
+                (size_t)current_packet->l2_len,
+                (size_t)current_packet->l3_len,
+                (size_t)current_packet->l4_len);*/
 
             if ( unlikely(drop_packet) ) {
                 rte_pktmbuf_free(current_packet);
@@ -94,23 +105,28 @@ uint16_t ingress_packet_validator::process(mbuf_vec_base& mbuf_vec, flow_proc_co
 void ingress_packet_validator::init(const flow_proc_builder& builder) {}
 
 bool ingress_packet_validator::handle_ipv4_packet(rte_mbuf*            mbuf,
-                                                  const uint8_t*       ipv4_header_base,
+                                                  uint8_t*       ipv4_header_base,
                                                   uint16_t             l3_len,
                                                   packet_private_info* packet_info) {
     if ( unlikely(l3_len < sizeof(rte_ipv4_hdr)) )
         return true;
 
-    const auto* ipv4_header = reinterpret_cast< const rte_ipv4_hdr* >(ipv4_header_base);
+    auto* ipv4_header = reinterpret_cast< rte_ipv4_hdr* >(ipv4_header_base);
 
     uint16_t ipv4_header_len = rte_ipv4_hdr_len(ipv4_header);
 
     uint16_t ipv4_packet_len = rte_be_to_cpu_16(ipv4_header->total_length);
+
+    packet_info->l4_offset = packet_info->l3_offset + ipv4_header_len;
 
     mbuf->ol_flags |= PKT_TX_IPV4 | PKT_TX_IP_CKSUM;
     mbuf->l3_len = ipv4_header_len;
 
     packet_info->ipv4_type = ipv4_header->next_proto_id;
     mbuf->l3_type = ipv4_header->next_proto_id;
+
+    ipv4_header->hdr_checksum = 0;
+    //rte_pktmbuf_dump(stdout, mbuf, mbuf->data_len);
 
     // TODO: Handle reassembly of packets (maybe?)
 
@@ -121,15 +137,21 @@ bool ingress_packet_validator::handle_ipv4_packet(rte_mbuf*            mbuf,
             return true;
 
         if(packet_info->ipv4_type == IPPROTO_UDP) {
+            auto* udp_header = rte_pktmbuf_mtod_offset(mbuf, struct rte_udp_hdr*, packet_info->l4_offset);
+
+            udp_header->dgram_cksum = 0;
+
             mbuf->ol_flags |= PKT_TX_UDP_CKSUM;
             mbuf->l4_len = sizeof(rte_udp_hdr);
         } else if(packet_info->ipv4_type == IPPROTO_TCP) {
+            auto* tcp_header = rte_pktmbuf_mtod_offset(mbuf, struct rte_tcp_hdr*, packet_info->l4_offset);
+
+            tcp_header->cksum = 0;
+
             mbuf->ol_flags |= PKT_TX_TCP_CKSUM;
             mbuf->l4_len = sizeof(rte_tcp_hdr);
         }
     }
-
-    packet_info->l4_offset = packet_info->l3_offset + ipv4_header_len;
 
     packet_info->ipv4_len = ipv4_packet_len;
 
@@ -158,6 +180,8 @@ uint16_t flow_classifier::process(mbuf_vec_base& mbuf_vec, flow_proc_context& ct
 
             if ( likely(packet_info->flow_info) ) {
                 if ( entry_created ) {
+                    
+                    packet_info->flow_info->flow_hash = fhash;
                     packet_info->flow_info->mark = 0;
                     packet_info->flow_info->overwrite_dst_port = PORT_ID_IGNORE;
 
@@ -166,8 +190,8 @@ uint16_t flow_classifier::process(mbuf_vec_base& mbuf_vec, flow_proc_context& ct
                     const rte_ipv4_hdr* ipv4_header =
                         rte_pktmbuf_mtod_offset(current_packet, struct rte_ipv4_hdr*, packet_info->l3_offset);
 
-                    rte_ether_addr_copy(&ether_header->d_addr, &packet_info->flow_info->ether_dst);
-                    rte_ether_addr_copy(&ether_header->s_addr, &packet_info->flow_info->ether_src);
+                    rte_ether_addr_copy(&ether_header->dst_addr, &packet_info->flow_info->ether_dst);
+                    rte_ether_addr_copy(&ether_header->src_addr, &packet_info->flow_info->ether_src);
 
                     packet_info->flow_info->dst_addr = ipv4_header->dst_addr;
                     packet_info->flow_info->src_addr = ipv4_header->src_addr;
@@ -175,8 +199,7 @@ uint16_t flow_classifier::process(mbuf_vec_base& mbuf_vec, flow_proc_context& ct
                     packet_info->new_flow = true;
                 }
 
-                // log(LOG_DEBUG, "pkt [flow {}] : {} -> {}", fhash, packet_info->flow_info->src_addr,
-                // packet_info->flow_info->dst_addr);
+                //log(LOG_DEBUG, "pkt [flow {}] : {} -> {}", fhash, packet_info->flow_info->src_addr, packet_info->flow_info->dst_addr);
             }
         }
     }
@@ -238,6 +261,10 @@ struct lua_packet_accessor
 
     uint16_t get_dst_endpoint() const noexcept {
         return packet_info->dst_endpoint_id;
+    }
+
+    uint64_t get_flow_id() const noexcept {
+        return flow_info->flow_hash;
     }
 };
 

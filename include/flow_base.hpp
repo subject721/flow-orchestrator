@@ -119,10 +119,14 @@ public:
 
     void set_lcore_inactive(unsigned int lcore_id);
 
+    size_t get_num_flows();
+
 private:
     using lcore_table_state_t = std::array<uint32_t, RTE_MAX_LCORE>;
 
     size_t max_entries;
+
+    std::atomic_size_t current_num_entries;
 
     std::vector<lcore_info> write_allowed_lcores;
 

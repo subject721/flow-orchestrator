@@ -32,7 +32,7 @@ using flow_hash = uint64_t;
 
 struct flow_info_ipv4
 {
-    uint64_t counter;
+    uint64_t flow_hash;
 
     uint64_t last_used;
 
@@ -116,8 +116,8 @@ static __inline void get_ether_header_info(rte_ether_hdr* ether_header, uint16_t
 static __inline void init_flow_info_ipv4(flow_info_ipv4*      flow_info,
                                          const rte_ether_hdr* ether_hdr,
                                          const rte_ipv4_hdr*  ipv4_hdr) {
-    rte_ether_addr_copy(&ether_hdr->s_addr, &flow_info->ether_src);
-    rte_ether_addr_copy(&ether_hdr->d_addr, &flow_info->ether_dst);
+    rte_ether_addr_copy(&ether_hdr->src_addr, &flow_info->ether_src);
+    rte_ether_addr_copy(&ether_hdr->dst_addr, &flow_info->ether_dst);
 
     flow_info->src_addr = ipv4_hdr->src_addr;
     flow_info->dst_addr = ipv4_hdr->dst_addr;

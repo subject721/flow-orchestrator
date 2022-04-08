@@ -61,14 +61,19 @@ void _log(log_message msg) {
         color_str = ORANGE_COLOR;
     } else if ( msg.get_log_level() == LOG_ERROR ) {
         color_str = RED_COLOR;
-    } else if ( msg.get_log_level() == LOG_DEBUG ) {
+    } else if ( msg.get_log_level() == LOG_INFO ) {
         color_str = GREEN_COLOR;
     }
 
-    color_inserter color_inserter(stream, color_str);
+    stream << to_simple_string(now) << " [";
 
-    stream << to_simple_string(now) << " [" << std::setw(5) << log_message::log_level_str(msg.get_log_level())
-           << "] : " << msg.get_msg() << std::endl;
+    {
+        color_inserter color_inserter(stream, color_str);
+
+        stream  << std::setw(5) << log_message::log_level_str(msg.get_log_level());
+    }
+
+    stream << "] : " << msg.get_msg() << std::endl;
 }
 
 

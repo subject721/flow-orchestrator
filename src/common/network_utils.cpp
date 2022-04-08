@@ -18,7 +18,7 @@ bool calc_flow_hash(rte_mbuf* mbuf, flow_hash* flow_hash) {
     const packet_private_info* packet_info = reinterpret_cast< const packet_private_info* >(rte_mbuf_to_priv(mbuf));
 
     // Interpret the two mac addresses as three 32bit integers to make hashing more easy:
-    const auto* mac_addr_data32b = (const uint32_t*) ether_header->d_addr.addr_bytes;
+    const auto* mac_addr_data32b = (const uint32_t*) ether_header->dst_addr.addr_bytes;
 
     uint32_t h = rte_jhash_3words(mac_addr_data32b[0], mac_addr_data32b[1], mac_addr_data32b[2], FLOW_HASH_SEED);
 
