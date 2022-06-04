@@ -119,7 +119,7 @@ bool ingress_packet_validator::handle_ipv4_packet(rte_mbuf*            mbuf,
 
     packet_info->l4_offset = packet_info->l3_offset + ipv4_header_len;
 
-    mbuf->ol_flags |= PKT_TX_IPV4 | PKT_TX_IP_CKSUM;
+    mbuf->ol_flags |= RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM;
     mbuf->l3_len = ipv4_header_len;
 
     packet_info->ipv4_type = ipv4_header->next_proto_id;
@@ -141,14 +141,14 @@ bool ingress_packet_validator::handle_ipv4_packet(rte_mbuf*            mbuf,
 
             udp_header->dgram_cksum = 0;
 
-            mbuf->ol_flags |= PKT_TX_UDP_CKSUM;
+            mbuf->ol_flags |= RTE_MBUF_F_TX_UDP_CKSUM;
             mbuf->l4_len = sizeof(rte_udp_hdr);
         } else if(packet_info->ipv4_type == IPPROTO_TCP) {
             auto* tcp_header = rte_pktmbuf_mtod_offset(mbuf, struct rte_tcp_hdr*, packet_info->l4_offset);
 
             tcp_header->cksum = 0;
 
-            mbuf->ol_flags |= PKT_TX_TCP_CKSUM;
+            mbuf->ol_flags |= RTE_MBUF_F_TX_TCP_CKSUM;
             mbuf->l4_len = sizeof(rte_tcp_hdr);
         }
     }

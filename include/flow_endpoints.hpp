@@ -40,12 +40,12 @@ public:
 
 #if TELEMETRY_ENABLED == 1
     void init_telemetry(telemetry_distributor& telemetry) override {
-        telemetry.add_metric(metric_group);
+        telemetry.add_metric(local_metric_group);
 
-        metric_group.add_metric(tx_packets);
-        metric_group.add_metric(rx_packets);
-        metric_group.add_metric(tx_bytes);
-        metric_group.add_metric(rx_bytes);
+        local_metric_group.add_metric(tx_packets);
+        local_metric_group.add_metric(rx_packets);
+        local_metric_group.add_metric(tx_bytes);
+        local_metric_group.add_metric(rx_bytes);
     }
 #endif
 
@@ -58,7 +58,7 @@ private:
     std::unique_ptr< dpdk_ethdev > eth_dev;
 
 #if TELEMETRY_ENABLED == 1
-    metric_group metric_group;
+    metric_group local_metric_group;
     scalar_metric<uint64_t> tx_packets;
     scalar_metric<uint64_t> rx_packets;
     scalar_metric<uint64_t> tx_bytes;

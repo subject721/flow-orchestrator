@@ -12,7 +12,7 @@ eth_dpdk_endpoint::eth_dpdk_endpoint(std::string                     name,
                                      std::unique_ptr< dpdk_ethdev >  eth_dev) :
     flow_endpoint_base(std::move(name), (int)eth_dev->get_port_id(), std::move(mempool)), eth_dev(std::move(eth_dev))
 #if TELEMETRY_ENABLED == 1
-    ,metric_group(fmt::format("ep-{}", get_name()))
+    ,local_metric_group(fmt::format("ep-{}", get_name()))
     ,tx_packets("tx_packets", metric_unit::PACKETS)
     ,rx_packets("rx_packets", metric_unit::PACKETS)
     ,tx_bytes("tx_bytes", metric_unit::BYTES)

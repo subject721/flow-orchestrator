@@ -462,9 +462,9 @@ std::unique_ptr< flow_endpoint_base > flow_orchestrator_app::create_endpoint(con
 
         uint64_t offload_flags = 0;
 
-        offload_flags |= DEV_TX_OFFLOAD_IPV4_CKSUM;
-        offload_flags |= DEV_TX_OFFLOAD_UDP_CKSUM;
-        offload_flags |= DEV_TX_OFFLOAD_TCP_CKSUM;
+        offload_flags |= RTE_ETH_TX_OFFLOAD_IPV4_CKSUM;
+        offload_flags |= RTE_ETH_TX_OFFLOAD_UDP_CKSUM;
+        offload_flags |= RTE_ETH_TX_OFFLOAD_TCP_CKSUM;
 
         const auto all_devices = get_available_ethdev_ids();
 
