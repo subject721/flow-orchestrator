@@ -45,7 +45,18 @@ static __always_inline packet_private_info* get_private_packet_info(rte_mbuf* mb
     return reinterpret_cast< packet_private_info* >(rte_mbuf_to_priv(mbuf));
 }
 
-class flow_node_base : noncopyable
+
+class flow_component : noncopyable
+{
+public:
+    
+    virtual ~flow_component() = default;
+
+private:
+
+};
+
+class flow_node_base : public flow_component
 {
 public:
     flow_node_base(std::string name, std::shared_ptr< dpdk_packet_mempool > mempool);
@@ -102,7 +113,7 @@ private:
 
 
 
-class flow_database : noncopyable
+class flow_database : public flow_component
 {
 public:
     flow_database(size_t max_entries, std::vector<lcore_info> write_allowed_lcores);

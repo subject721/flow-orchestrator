@@ -30,6 +30,9 @@
 #include <flow_config.hpp>
 #include <flow_manager.hpp>
 
+#include <app_config.hpp>
+#include <string_view>
+
 #if TELEMETRY_ENABLED == 1
 #include <flow_telemetry.hpp>
 #endif  // TELEMETRY_ENABLED
@@ -94,6 +97,8 @@ private:
                                                           const std::string& id,
                                                           const std::string& options);
 
+    app_config config;
+
     bool should_exit;
 
     std::vector< std::string > dpdk_options;
@@ -132,7 +137,7 @@ int main(int argc, char** argv) {
 
     signal_queue = std::deque< int >();
 
-    std::string welcome_msg = fmt::format("Running Flow Orchestrator {}", VERSION_STR);
+    std::string welcome_msg = fmt::format("Flow Orchestrator {}", VERSION_STR);
 
     size_t padding = welcome_msg.size() + 4;
 
@@ -241,6 +246,7 @@ int flow_orchestrator_app::run() {
 static const std::string_view DPDK_OPTIONS_FLAG = "dpdk-options";
 static const std::string_view DEVICES_FLAG      = "devices";
 static const std::string_view INIT_SCRIPT_FLAG  = "init-script";
+static const std::string_view CONFIG_FILE_FLAG  = "config-file";
 
 static const size_t DEFAULT_FLOW_TABLE_SIZE = (1 << 14);
 
@@ -262,7 +268,8 @@ void flow_orchestrator_app::parse_args(int argc, char** argv) {
     desc.add_options()("help", "print help")(
         DPDK_OPTIONS_FLAG.data(), po::value< std::vector< std::string > >()->multitoken(), "dpdk options")(
         DEVICES_FLAG.data(), po::value< std::vector< std::string > >()->multitoken(), "Devices to use")(
-        INIT_SCRIPT_FLAG.data(), po::value< std::string >(), "Init script to load");
+        INIT_SCRIPT_FLAG.data(), po::value< std::string >(), "Init script to load")(
+        CONFIG_FILE_FLAG.data(), po::value< std::string >(), "Config file to load");
 
 #if TELEMETRY_ENABLED == 1
     uint32_t telemetry_interval_arg = DEFAULT_TELEMETRY_POLL_INTERVAL;
@@ -290,6 +297,10 @@ void flow_orchestrator_app::parse_args(int argc, char** argv) {
         should_exit = true;
 
         return;
+    }
+
+    if ( vm.count(CONFIG_FILE_FLAG.data()) ) {
+        config.load_from_toml(std::filesystem::path(vm[CONFIG_FILE_FLAG.data()].as< std::string >()));
     }
 
 #if TELEMETRY_ENABLED == 1

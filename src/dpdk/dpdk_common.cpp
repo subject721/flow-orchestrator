@@ -32,7 +32,7 @@ void dpdk_memzone_deleter::operator()(const rte_memzone* memzone) {
 }
 
 std::string lcore_info::to_string() const {
-    return fmt::format("{}/{}", get_socket_id(), get_lcore_id());
+    return fmt::format("core {} on node {}", get_lcore_id(), get_socket_id());
 }
 
 lcore_info lcore_info::from_lcore_id(uint32_t lcore_id) {

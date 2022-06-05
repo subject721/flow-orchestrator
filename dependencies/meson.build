@@ -22,6 +22,7 @@ dep_luajit = dep_null
 dep_sol = dep_null
 dep_zmq = dep_null
 dep_json = dep_null
+dep_toml = dep_null
 
 if opt_use_conan_deps
     error('Conan dependencies not supported yet!')
@@ -59,6 +60,9 @@ else
         dep_zmq = dependency('libzmq')
         dep_json = dependency('nlohmann_json')
     endif
+
+    dep_toml = dependency('cpptoml')
+
 endif
 
 dep_foreign = []
@@ -70,6 +74,7 @@ dep_foreign += dep_asmjit
 dep_foreign += dep_luajit
 dep_foreign += dep_sol
 dep_foreign += dep_fmt
+dep_foreign += dep_toml
 
 if dep_zmq.found()
     dep_foreign += dep_zmq

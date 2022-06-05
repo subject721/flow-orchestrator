@@ -180,6 +180,8 @@ flow_info_ipv4* flow_database::get_or_create(flow_hash fhash, bool& created) {
 
                 ++current_num_entries;
             }
+        } else {
+            rte_rcu_qsbr_quiescent(rcu, lcore_id);
         }
     }
 

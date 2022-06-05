@@ -24,6 +24,10 @@
 
 #include <fmt/format.h>
 
+#ifndef attribute_unused
+#define attribute_unused __attribute__ ((unused))
+#endif // attribute_unused
+
 class noncopyable
 {
 public:
