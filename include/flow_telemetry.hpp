@@ -27,7 +27,7 @@ enum class metric_unit
     PACKETS,
     BITS,
     BYTES,
-    NANOSECONDS, // For know define seperate units for nano,micro,milli,... seconds. Later think about a smarter way
+    NANOSECONDS, // For now define seperate units for nano,micro,milli,... seconds. Later think about a smarter way
     MICROSECONDS,
     MILLISECONDS,
     SECONDS

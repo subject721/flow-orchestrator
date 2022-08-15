@@ -247,14 +247,12 @@ static const std::string_view DPDK_OPTIONS_FLAG = "dpdk-options";
 static const std::string_view DEVICES_FLAG      = "devices";
 static const std::string_view INIT_SCRIPT_FLAG  = "init-script";
 static const std::string_view CONFIG_FILE_FLAG  = "config-file";
+static const std::string_view DUMP_CONFIG_PARAMS_FLAG = "dump-config-params";
 
-static const size_t DEFAULT_FLOW_TABLE_SIZE = (1 << 14);
 
 #if TELEMETRY_ENABLED == 1
-static const std::string_view TELEMETRY_ENDPOINT_FLAG      = "telemetry-endpoint";
-static const std::string_view TELEMETRY_POLL_INTERVAL_FLAG = "telemetry-interval";
-
-static const uint32_t DEFAULT_TELEMETRY_POLL_INTERVAL = 250;
+static const std::string_view TELEMETRY_ENDPOINT_FLAG = "telemetry-bind-addr";
+static const std::string_view TELEMETRY_PORT_FLAG     = "telemetry-bind-port";
 #endif
 
 void flow_orchestrator_app::parse_args(int argc, char** argv) {
@@ -265,19 +263,17 @@ void flow_orchestrator_app::parse_args(int argc, char** argv) {
 
     po::options_description desc("Command line options");
 
-    desc.add_options()("help", "print help")(
+    desc.add_options()("help", "print help")(DUMP_CONFIG_PARAMS_FLAG.data(), "Dump all config params that can be set via the config file and their defaults")(
         DPDK_OPTIONS_FLAG.data(), po::value< std::vector< std::string > >()->multitoken(), "dpdk options")(
         DEVICES_FLAG.data(), po::value< std::vector< std::string > >()->multitoken(), "Devices to use")(
         INIT_SCRIPT_FLAG.data(), po::value< std::string >(), "Init script to load")(
         CONFIG_FILE_FLAG.data(), po::value< std::string >(), "Config file to load");
 
 #if TELEMETRY_ENABLED == 1
-    uint32_t telemetry_interval_arg = DEFAULT_TELEMETRY_POLL_INTERVAL;
 
-    desc.add_options()(TELEMETRY_ENDPOINT_FLAG.data(), po::value< std::string >(), "Telemetry endpoint");
-    desc.add_options()(TELEMETRY_POLL_INTERVAL_FLAG.data(),
-                       po::value< uint32_t >(&telemetry_interval_arg),
-                       "Telemetry poll interval in milliseconds");
+    desc.add_options()(TELEMETRY_ENDPOINT_FLAG.data(), po::value< std::string >(), "Telemetry bind address");
+    desc.add_options()(TELEMETRY_PORT_FLAG.data(), po::value< uint16_t >(), "Telemetry bind port");
+
 #endif
 
     po::positional_options_description p;
@@ -299,24 +295,34 @@ void flow_orchestrator_app::parse_args(int argc, char** argv) {
         return;
     }
 
+    if (vm.count(DUMP_CONFIG_PARAMS_FLAG.data())) {
+        auto config_names = config.get_all_param_names();
+
+        for(const auto& config_name : config_names) {
+            std::cout << config_name << std::endl;
+        }
+
+        should_exit = true;
+
+        return;
+    }
+
     if ( vm.count(CONFIG_FILE_FLAG.data()) ) {
         config.load_from_toml(std::filesystem::path(vm[CONFIG_FILE_FLAG.data()].as< std::string >()));
     }
 
 #if TELEMETRY_ENABLED == 1
     if ( vm.count(TELEMETRY_ENDPOINT_FLAG.data()) ) {
-        telemetry_addr = vm[TELEMETRY_ENDPOINT_FLAG.data()].as< std::string >();
-    } else {
-        telemetry_addr = "tcp://127.0.0.1:8123";
+        config.overwrite_telemetry_bind_addr(vm[TELEMETRY_ENDPOINT_FLAG.data()].as< std::string >());
     }
 
-    //    if(vm.count(TELEMETRY_POLL_INTERVAL_FLAG.data())) {
-    //        telemetry_poll_interval = std::chrono::milliseconds(vm[TELEMETRY_ENDPOINT_FLAG.data()].as<unsigned
-    //        int>());
-    //    } else {
-    //        telemetry_poll_interval = std::chrono::milliseconds(DEFAULT_TELEMETRY_POLL_INTERVAL);
-    //    }
-    telemetry_poll_interval = std::chrono::milliseconds(telemetry_interval_arg);
+    if ( vm.count(TELEMETRY_PORT_FLAG.data()) ) {
+        config.overwrite_telemetry_bind_port(vm[TELEMETRY_PORT_FLAG.data()].as< uint16_t >());
+    }
+
+    telemetry_addr = fmt::format("tcp://{}:{}", config.get_telemetry_bind_addr(), config.get_telemetry_bind_port());
+
+    telemetry_poll_interval = std::chrono::milliseconds(config.get_telemetry_update_interval_ms());
 #endif  // TELEMETRY_ENABLED
 
     if ( vm.count(INIT_SCRIPT_FLAG.data()) ) {
@@ -340,8 +346,8 @@ void flow_orchestrator_app::parse_args(int argc, char** argv) {
 
     device_names = vm[DEVICES_FLAG.data()].as< std::vector< std::string > >();
 
-    pool_size     = (1 << 14);
-    cache_size    = 128;
+    pool_size     = config.get_primary_pkt_allocator_capacity();
+    cache_size    = config.get_primary_pkt_allocator_cache_size();
     dataroom_size = RTE_MBUF_DEFAULT_BUF_SIZE;
     private_size  = align_to_next_multiple(sizeof(packet_private_info), (size_t) RTE_MBUF_PRIV_ALIGN);
 }
@@ -358,8 +364,6 @@ void flow_orchestrator_app::setup() {
     version_metric.set(VERSION_STR);
 #endif
 
-    // dpdk_options.push_back("--no-shconf");
-    // dpdk_options.push_back("--in-memory");
 
     for ( const auto& interface_identifier : device_names ) {
         dev_info info;
@@ -413,7 +417,6 @@ void flow_orchestrator_app::setup() {
 
     mempool = std::make_shared< dpdk_packet_mempool >(pool_size, cache_size, dataroom_size, private_size);
 
-
     load_flow_proc();
 
     log(LOG_INFO, "Setup done");
@@ -452,7 +455,7 @@ void flow_orchestrator_app::load_flow_proc() {
         init_handler.load_init_script(init_script_name);
 
         std::shared_ptr< flow_database > fdatabase =
-            std::make_shared< flow_database >(DEFAULT_FLOW_TABLE_SIZE, processing_lcores);
+            std::make_shared< flow_database >(config.get_flowtable_capacity(), processing_lcores);
 
         auto flow_program = init_handler.build_program(std::move(endpoints), fdatabase);
 

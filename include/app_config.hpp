@@ -70,25 +70,33 @@ struct is_valid_limits_type
         return {};
     }
 
-
     static constexpr const bool value =
         decltype(check< TLimits, TValue >(std::declval< TLimits >(), std::declval< TValue& >()))::value;
 };
 
-struct config_param_base
+class config_param_base
 {
+public:
     config_param_base(std::string name) : name(std::move(name)) {}
 
     virtual ~config_param_base() = default;
 
+    const std::string& get_name() const noexcept {
+        return name;
+    }
+
     virtual void set_from_string(const std::string& str) = 0;
 
+    virtual std::string to_string() const noexcept = 0;
+
+private:
     std::string name;
 };
 
 template < class T, class TLimitTraits = no_limits >
-struct config_param : public config_param_base
+class config_param : public config_param_base
 {
+public:
     using value_type = T;
 
     using limits_type = TLimitTraits;
@@ -125,12 +133,25 @@ struct config_param : public config_param_base
         set(std::move(tmp));
     }
 
+    std::string to_string() const noexcept override {
+        std::ostringstream osstr;
+
+        osstr << value;
+
+        return osstr.str();
+    }
+
+    const value_type& get_value() const noexcept {
+        return value;
+    }
+
+private:
     value_type  value;
     limits_type limits;
 };
 
 
-class app_config
+class app_config : noncopyable
 {
 public:
     app_config() noexcept;
@@ -138,22 +159,51 @@ public:
     void load_from_toml(const std::filesystem::path& cfg_file_path);
 
     size_t get_primary_pkt_allocator_capacity() const noexcept {
-        return primary_pkt_allocator_capacity.value;
+        return primary_pkt_allocator_capacity.get_value();
     }
 
     size_t get_primary_pkt_allocator_cache_size() const noexcept {
-        return primary_pkt_allocator_cache_size.value;
+        return primary_pkt_allocator_cache_size.get_value();
     }
 
     size_t get_flowtable_capacity() const noexcept {
-        return flowtable_capacity.value;
+        return flowtable_capacity.get_value();
+    }
+
+    const std::string& get_telemetry_bind_addr() const noexcept {
+        return telemetry_bind_addr.get_value();
+    }
+
+    uint16_t get_telemetry_bind_port() const noexcept {
+        return telemetry_bind_port.get_value();
+    }
+
+    uint32_t get_telemetry_update_interval_ms() const noexcept {
+        return telemetry_update_interval_ms.get_value();
     }
 
 
+    void overwrite_telemetry_bind_addr(std::string new_value) {
+        telemetry_bind_addr.set(std::move(new_value));
+    }
+
+    void overwrite_telemetry_bind_port(uint16_t new_value) {
+        telemetry_bind_port.set(new_value);
+    }
+
+    std::vector<std::string> get_all_param_names() const; 
+
 private:
     std::vector< std::reference_wrapper< config_param_base > > dataplane_config_params;
+    std::vector< std::reference_wrapper< config_param_base > > telemetry_config_params;
 
+    // dataplane params
     config_param< size_t, min_max_limits< size_t > > primary_pkt_allocator_capacity;
     config_param< size_t, min_max_limits< size_t > > primary_pkt_allocator_cache_size;
     config_param< size_t, min_max_limits< size_t > > flowtable_capacity;
+
+    // telemetry params
+    config_param< std::string >                          telemetry_bind_addr;
+    config_param< uint16_t >                             telemetry_bind_port;
+    config_param< uint32_t, min_max_limits< uint32_t > > telemetry_update_interval_ms;
 };

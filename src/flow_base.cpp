@@ -12,15 +12,19 @@ const std::string flow_dir_label< flow_dir::RX >::name = "rx";
 
 const std::string flow_dir_label< flow_dir::TX >::name = "tx";
 
-flow_node_base::flow_node_base(std::string name, std::shared_ptr< dpdk_packet_mempool > mempool) :
-    name(std::move(name)), mempool(std::move(mempool)) {}
+flow_component_base::flow_component_base(std::string name) : name(std::move(name)) {}
 
-flow_node_base::flow_node_base(flow_node_base&& other) noexcept :
-    name(std::move(other.name)), mempool(std::move(other.mempool)) {}
+flow_component_base::flow_component_base(flow_component_base&& other) noexcept : name(std::move(other.name)) {}
 
-const std::string& flow_node_base::get_name() const noexcept {
+const std::string& flow_component_base::get_name() const noexcept {
     return name;
 }
+
+flow_node_base::flow_node_base(std::string name, std::shared_ptr< dpdk_packet_mempool > mempool) :
+    flow_component_base(std::move(name)), mempool(std::move(mempool)) {}
+
+flow_node_base::flow_node_base(flow_node_base&& other) noexcept :
+    flow_component_base(std::move(other)), mempool(std::move(other.mempool)) {}
 
 
 flow_endpoint_base::flow_endpoint_base(std::string name, int port_num, std::shared_ptr< dpdk_packet_mempool > mempool) :
@@ -51,7 +55,7 @@ struct alignas(RTE_CACHE_LINE_SIZE) flow_table_entry_state
 };
 
 flow_database::flow_database(size_t max_entries, std::vector< lcore_info > write_allowed_lcores) :
-    max_entries(max_entries), current_num_entries(0), write_allowed_lcores(write_allowed_lcores) {
+    flow_component_base("flow_database"), max_entries(max_entries), current_num_entries(0), write_allowed_lcores(write_allowed_lcores) {
 
     size_t element_size = sizeof(flow_info_ipv4);
     size_t cache_size   = 0;
@@ -70,6 +74,7 @@ flow_database::flow_database(size_t max_entries, std::vector< lcore_info > write
 
     std::memset(lcore_state.data(), 0, lcore_state.size() * sizeof(lcore_table_state_t::value_type));
 
+#if USE_FLOW_DATABASE_RCU_IMPL == 1
     // We need to find the maximum lcore id for the rcu qsbr stuff
     auto lcore_max =
         std::reduce(write_allowed_lcores.begin(),
@@ -86,6 +91,7 @@ flow_database::flow_database(size_t max_entries, std::vector< lcore_info > write
     if ( rte_rcu_qsbr_init(rcu_state.get(), lcore_max.get_lcore_id() + 1) ) {
         throw std::runtime_error("could not init rcu state");
     }
+#endif
 
     flow_table_memsize = sizeof(flow_table_entry_state) * max_entries;
 
@@ -109,7 +115,9 @@ flow_info_ipv4* flow_database::get_or_create(flow_hash fhash, bool& created) {
 
     unsigned int lcore_id = rte_lcore_id();
 
+#if USE_FLOW_DATABASE_RCU_IMPL == 1
     rte_rcu_qsbr* rcu = rcu_state.get();
+#endif // USE_FLOW_DATABASE_RCU_IMPL
 
     flow_table_entry_state* flow_table_data = (flow_table_entry_state*) table_memory.get()->addr;
 
@@ -123,7 +131,9 @@ flow_info_ipv4* flow_database::get_or_create(flow_hash fhash, bool& created) {
 
         flow_table_entry_state* dst_state = flow_table_data + reduced_key;
 
+#if USE_FLOW_DATABASE_RCU_IMPL == 1
         rte_rcu_qsbr_lock(rcu, lcore_id);
+#endif // USE_FLOW_DATABASE_RCU_IMPL
 
         uint16_t index = dst_state->lru_head;
 
@@ -141,15 +151,18 @@ flow_info_ipv4* flow_database::get_or_create(flow_hash fhash, bool& created) {
             }
         } while ( index != dst_state->lru_head );
 
-
+#if USE_FLOW_DATABASE_RCU_IMPL == 1
         rte_rcu_qsbr_unlock(rcu, lcore_id);
+#endif // USE_FLOW_DATABASE_RCU_IMPL
 
         if ( !flow_entry ) {
             struct flow_info_ipv4* oldest_entry = nullptr;
 
+#if USE_FLOW_DATABASE_RCU_IMPL == 1
             auto qs_token = rte_rcu_qsbr_start(rcu);
 
             rte_rcu_qsbr_quiescent(rcu, lcore_id);
+#endif // USE_FLOW_DATABASE_RCU_IMPL
 
             rte_mempool_get(mempool.get(), (void**) &flow_entry);
 
@@ -170,7 +183,9 @@ flow_info_ipv4* flow_database::get_or_create(flow_hash fhash, bool& created) {
                 rte_compiler_barrier();
                 dst_state->flow_info[new_lru_head] = flow_entry;
 
+#if USE_FLOW_DATABASE_RCU_IMPL == 1
                 rte_rcu_qsbr_check(rcu, qs_token, true);
+#endif // USE_FLOW_DATABASE_RCU_IMPL
 
                 rte_mempool_put(mempool.get(), (void*) oldest_entry);
 
@@ -180,8 +195,6 @@ flow_info_ipv4* flow_database::get_or_create(flow_hash fhash, bool& created) {
 
                 ++current_num_entries;
             }
-        } else {
-            rte_rcu_qsbr_quiescent(rcu, lcore_id);
         }
     }
 
@@ -193,25 +206,41 @@ flow_info_ipv4* flow_database::get_or_create(flow_hash fhash, bool& created) {
 }
 
 void flow_database::flow_purge_checkpoint(unsigned int lcore_id) {
+#if USE_FLOW_DATABASE_RCU_IMPL == 1
     rte_rcu_qsbr_quiescent(rcu_state.get(), lcore_id);
+#endif // USE_FLOW_DATABASE_RCU_IMPL
 }
 
 void flow_database::set_lcore_active(unsigned int lcore_id) {
-    rte_rcu_qsbr_thread_register(rcu_state.get(), lcore_id);
-
+    
     lcore_state[lcore_id] = 1;
 
+#if USE_FLOW_DATABASE_RCU_IMPL == 1
     rte_rcu_qsbr_thread_online(rcu_state.get(), lcore_id);
+#endif // USE_FLOW_DATABASE_RCU_IMPL
 }
 
 void flow_database::set_lcore_inactive(unsigned int lcore_id) {
+#if USE_FLOW_DATABASE_RCU_IMPL == 1
     rte_rcu_qsbr_thread_offline(rcu_state.get(), lcore_id);
+#endif // USE_FLOW_DATABASE_RCU_IMPL
 
     lcore_state[lcore_id] = 0;
 
-    rte_rcu_qsbr_thread_unregister(rcu_state.get(), lcore_id);
 }
 
 size_t flow_database::get_num_flows() {
-   return current_num_entries.load(std::memory_order_relaxed); 
+    return current_num_entries.load(std::memory_order_relaxed);
+}
+
+void flow_database::register_worker_lcore(const lcore_info& worker_lcore) {
+#if USE_FLOW_DATABASE_RCU_IMPL == 1
+    rte_rcu_qsbr_thread_register(rcu_state.get(), worker_lcore.get_lcore_id());
+#endif // USE_FLOW_DATABASE_RCU_IMPL
+}
+
+void flow_database::unregister_worker_lcore(const lcore_info& worker_lcore) {
+#if USE_FLOW_DATABASE_RCU_IMPL == 1
+    rte_rcu_qsbr_thread_unregister(rcu_state.get(), worker_lcore.get_lcore_id());
+#endif // USE_FLOW_DATABASE_RCU_IMPL
 }

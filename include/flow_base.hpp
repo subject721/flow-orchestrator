@@ -6,7 +6,9 @@
 
 #pragma once
 
+#include <generic/rte_rwlock.h>
 #include <rte_rcu_qsbr.h>
+#include <rte_rwlock.h>
 #include "common/common.hpp"
 #include "common/network_utils.hpp"
 #include "dpdk/dpdk_common.hpp"
@@ -14,6 +16,8 @@
 #if TELEMETRY_ENABLED == 1
 #include "flow_telemetry.hpp"
 #endif
+
+#define USE_FLOW_DATABASE_RCU_IMPL 1
 
 enum class flow_dir
 {
@@ -46,17 +50,26 @@ static __always_inline packet_private_info* get_private_packet_info(rte_mbuf* mb
 }
 
 
-class flow_component : noncopyable
+class flow_component_base : noncopyable
 {
 public:
+    explicit flow_component_base(std::string name);
+
+    flow_component_base(flow_component_base&& other) noexcept;
     
-    virtual ~flow_component() = default;
+    virtual ~flow_component_base() = default;
+
+    const std::string& get_name() const noexcept;
+
+    virtual void register_worker_lcore(const lcore_info& worker_lcore) {}
+
+    virtual void unregister_worker_lcore(const lcore_info& worker_lcore) {}
 
 private:
-
+    std::string name;
 };
 
-class flow_node_base : public flow_component
+class flow_node_base : public flow_component_base
 {
 public:
     flow_node_base(std::string name, std::shared_ptr< dpdk_packet_mempool > mempool);
@@ -64,8 +77,6 @@ public:
     flow_node_base(flow_node_base&& other) noexcept;
 
     virtual ~flow_node_base() = default;
-
-    const std::string& get_name() const noexcept;
 
     std::shared_ptr< dpdk_packet_mempool > get_mempool_shared() const {
         return mempool;
@@ -77,8 +88,7 @@ protected:
     }
 
 private:
-    std::string name;
-
+    
     std::shared_ptr< dpdk_packet_mempool > mempool;
 };
 
@@ -113,7 +123,7 @@ private:
 
 
 
-class flow_database : public flow_component
+class flow_database : public flow_component_base
 {
 public:
     flow_database(size_t max_entries, std::vector<lcore_info> write_allowed_lcores);
@@ -132,6 +142,10 @@ public:
 
     size_t get_num_flows();
 
+    void register_worker_lcore(const lcore_info& worker_lcore) override;
+    
+    void unregister_worker_lcore(const lcore_info& worker_lcore) override;
+
 private:
     using lcore_table_state_t = std::array<uint32_t, RTE_MAX_LCORE>;
 
@@ -145,12 +159,15 @@ private:
 
     std::unique_ptr<rte_mempool, mempool_deleter> mempool;
 
+#if USE_FLOW_DATABASE_RCU_IMPL == 1
     std::unique_ptr<rte_rcu_qsbr, dpdk_malloc_deleter> rcu_state;
+#else
+    rte_rwlock_t rw_lock;
+#endif
 
     size_t flow_table_memsize;
 
     std::unique_ptr<const rte_memzone, dpdk_memzone_deleter> table_memory;
-
 };
 
 template < class TFlowManager >
